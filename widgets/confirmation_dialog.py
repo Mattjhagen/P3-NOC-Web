@@ -20,9 +20,6 @@ class ConfirmationDialog(ModalScreen):
         padding: 1 2;
         width: 52;
         height: 12;
-        border: thick var(--primary, #00ff00);
-        background: var(--background, #001100);
-        color: var(--text, #00ff00);
     }
     #dialog-message {
         column-span: 2;
@@ -36,6 +33,48 @@ class ConfirmationDialog(ModalScreen):
     }
     #cancel-btn {
         width: 100%;
+    }
+
+    /* Explicit theme styles for #dialog-box to avoid CSS variables */
+    .matrix-green #dialog-box {
+        border: thick #00ff00;
+        background: #001100;
+        color: #00ff00;
+    }
+    .amber-crt #dialog-box {
+        border: thick #ffb000;
+        background: #0a0600;
+        color: #ffb000;
+    }
+    .cyber-blue #dialog-box {
+        border: thick #00f0ff;
+        background: #000911;
+        color: #00f0ff;
+    }
+    .red-alert #dialog-box {
+        border: thick #ff3333;
+        background: #110000;
+        color: #ff3333;
+    }
+    .matrix #dialog-box {
+        border: thick #00ff00;
+        background: #000000;
+        color: #00ff00;
+    }
+    .bloomberg #dialog-box {
+        border: thick #ff8800;
+        background: #000022;
+        color: #ff8800;
+    }
+    .trading-desk #dialog-box {
+        border: thick #00ffff;
+        background: #1c1c1c;
+        color: #00ffff;
+    }
+    .midnight #dialog-box {
+        border: thick #ffffff;
+        background: #000000;
+        color: #ffffff;
     }
     """
 
@@ -53,12 +92,7 @@ class ConfirmationDialog(ModalScreen):
         )
 
     def on_mount(self):
-        # Apply the current theme color to the border style
-        theme = THEME_COLORS.get(self.theme_name, THEME_COLORS["matrix-green"])
-        primary = theme["primary"]
-        
-        # Set classes or variables if needed
-        self.styles.border = ("thick", primary)
+        self.add_class(self.theme_name)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button click events."""

@@ -45,75 +45,238 @@ class P3NocApp(App):
     Includes Operator Actions panel, recovery services, and smart recommendations.
     """
     CSS = """
-    /* Colorway themes mapping */
-    .matrix-green {
-        --primary: #00ff00;
-        --background: #020a02;
-        --border: #008800;
-        --panel-bg: #041404;
-        --text: #00ff00;
-        --muted: #005500;
+    /* Theme colorways - Explicitly styled to avoid CSS variables */
+    
+    /* 1. matrix-green */
+    .matrix-green Screen {
+        background: #020a02;
+        color: #00ff00;
     }
-    .amber-crt {
-        --primary: #ffb000;
-        --background: #0a0600;
-        --border: #aa7000;
-        --panel-bg: #140d00;
-        --text: #ffb000;
-        --muted: #773c00;
+    .matrix-green SystemPanel, .matrix-green ThroughputPanel, .matrix-green SysMetricsPanel,
+    .matrix-green RiskRadar, .matrix-green RiskTrendPanel, .matrix-green RunbookPanel,
+    .matrix-green OllamaPanel, .matrix-green AlertPanel, .matrix-green AutopilotPanel,
+    .matrix-green NewsFeed, .matrix-green LogPanel, .matrix-green TickerWidget {
+        border: round #008800;
+        background: #041404;
+        color: #00ff00;
     }
-    .cyber-blue {
-        --primary: #00f0ff;
-        --background: #000911;
-        --border: #006699;
-        --panel-bg: #001222;
-        --text: #00f0ff;
-        --muted: #004466;
+    .matrix-green SystemPanel:focus, .matrix-green ThroughputPanel:focus, .matrix-green SysMetricsPanel:focus,
+    .matrix-green RiskRadar:focus, .matrix-green RiskTrendPanel:focus, .matrix-green RunbookPanel:focus,
+    .matrix-green OllamaPanel:focus, .matrix-green AlertPanel:focus, .matrix-green AutopilotPanel:focus,
+    .matrix-green NewsFeed:focus, .matrix-green LogPanel:focus, .matrix-green TickerWidget:focus {
+        border: double #00ff00;
     }
-    .red-alert {
-        --primary: #ff3333;
-        --background: #110000;
-        --border: #880000;
-        --panel-bg: #220000;
-        --text: #ff3333;
-        --muted: #550000;
+    .matrix-green.wallboard-mode SystemPanel, .matrix-green.wallboard-mode ThroughputPanel, .matrix-green.wallboard-mode SysMetricsPanel,
+    .matrix-green.wallboard-mode RiskRadar, .matrix-green.wallboard-mode RiskTrendPanel, .matrix-green.wallboard-mode RunbookPanel,
+    .matrix-green.wallboard-mode OllamaPanel, .matrix-green.wallboard-mode AlertPanel, .matrix-green.wallboard-mode AutopilotPanel,
+    .matrix-green.wallboard-mode NewsFeed, .matrix-green.wallboard-mode LogPanel, .matrix-green.wallboard-mode TickerWidget {
+        border: double #00ff00;
     }
-    .matrix {
-        --primary: #00ff00;
-        --background: #000000;
-        --border: #00ff00;
-        --panel-bg: #000000;
-        --text: #00ff00;
-        --muted: #003300;
-    }
-    .bloomberg {
-        --primary: #ff8800;
-        --background: #000033;
-        --border: #0044bb;
-        --panel-bg: #000022;
-        --text: #ff8800;
-        --muted: #0044aa;
-    }
-    .trading-desk {
-        --primary: #00ffff;
-        --background: #1c1c1c;
-        --border: #444444;
-        --panel-bg: #222222;
-        --text: #00ffff;
-        --muted: #888888;
-    }
-    .midnight {
-        --primary: #ffffff;
-        --background: #000000;
-        --border: #333333;
-        --panel-bg: #000000;
-        --text: #ffffff;
-        --muted: #444444;
+    .matrix-green TickerWidget {
+        background: #041404;
     }
 
-    Screen {
-        background: var(--background);
-        color: var(--text);
+    /* 2. amber-crt */
+    .amber-crt Screen {
+        background: #0a0600;
+        color: #ffb000;
+    }
+    .amber-crt SystemPanel, .amber-crt ThroughputPanel, .amber-crt SysMetricsPanel,
+    .amber-crt RiskRadar, .amber-crt RiskTrendPanel, .amber-crt RunbookPanel,
+    .amber-crt OllamaPanel, .amber-crt AlertPanel, .amber-crt AutopilotPanel,
+    .amber-crt NewsFeed, .amber-crt LogPanel, .amber-crt TickerWidget {
+        border: round #aa7000;
+        background: #140d00;
+        color: #ffb000;
+    }
+    .amber-crt SystemPanel:focus, .amber-crt ThroughputPanel:focus, .amber-crt SysMetricsPanel:focus,
+    .amber-crt RiskRadar:focus, .amber-crt RiskTrendPanel:focus, .amber-crt RunbookPanel:focus,
+    .amber-crt OllamaPanel:focus, .amber-crt AlertPanel:focus, .amber-crt AutopilotPanel:focus,
+    .amber-crt NewsFeed:focus, .amber-crt LogPanel:focus, .amber-crt TickerWidget:focus {
+        border: double #ffb000;
+    }
+    .amber-crt.wallboard-mode SystemPanel, .amber-crt.wallboard-mode ThroughputPanel, .amber-crt.wallboard-mode SysMetricsPanel,
+    .amber-crt.wallboard-mode RiskRadar, .amber-crt.wallboard-mode RiskTrendPanel, .amber-crt.wallboard-mode RunbookPanel,
+    .amber-crt.wallboard-mode OllamaPanel, .amber-crt.wallboard-mode AlertPanel, .amber-crt.wallboard-mode AutopilotPanel,
+    .amber-crt.wallboard-mode NewsFeed, .amber-crt.wallboard-mode LogPanel, .amber-crt.wallboard-mode TickerWidget {
+        border: double #ffb000;
+    }
+    .amber-crt TickerWidget {
+        background: #140d00;
+    }
+
+    /* 3. cyber-blue */
+    .cyber-blue Screen {
+        background: #000911;
+        color: #00f0ff;
+    }
+    .cyber-blue SystemPanel, .cyber-blue ThroughputPanel, .cyber-blue SysMetricsPanel,
+    .cyber-blue RiskRadar, .cyber-blue RiskTrendPanel, .cyber-blue RunbookPanel,
+    .cyber-blue OllamaPanel, .cyber-blue AlertPanel, .cyber-blue AutopilotPanel,
+    .cyber-blue NewsFeed, .cyber-blue LogPanel, .cyber-blue TickerWidget {
+        border: round #006699;
+        background: #001222;
+        color: #00f0ff;
+    }
+    .cyber-blue SystemPanel:focus, .cyber-blue ThroughputPanel:focus, .cyber-blue SysMetricsPanel:focus,
+    .cyber-blue RiskRadar:focus, .cyber-blue RiskTrendPanel:focus, .cyber-blue RunbookPanel:focus,
+    .cyber-blue OllamaPanel:focus, .cyber-blue AlertPanel:focus, .cyber-blue AutopilotPanel:focus,
+    .cyber-blue NewsFeed:focus, .cyber-blue LogPanel:focus, .cyber-blue TickerWidget:focus {
+        border: double #00f0ff;
+    }
+    .cyber-blue.wallboard-mode SystemPanel, .cyber-blue.wallboard-mode ThroughputPanel, .cyber-blue.wallboard-mode SysMetricsPanel,
+    .cyber-blue.wallboard-mode RiskRadar, .cyber-blue.wallboard-mode RiskTrendPanel, .cyber-blue.wallboard-mode RunbookPanel,
+    .cyber-blue.wallboard-mode OllamaPanel, .cyber-blue.wallboard-mode AlertPanel, .cyber-blue.wallboard-mode AutopilotPanel,
+    .cyber-blue.wallboard-mode NewsFeed, .cyber-blue.wallboard-mode LogPanel, .cyber-blue.wallboard-mode TickerWidget {
+        border: double #00f0ff;
+    }
+    .cyber-blue TickerWidget {
+        background: #001222;
+    }
+
+    /* 4. red-alert */
+    .red-alert Screen {
+        background: #110000;
+        color: #ff3333;
+    }
+    .red-alert SystemPanel, .red-alert ThroughputPanel, .red-alert SysMetricsPanel,
+    .red-alert RiskRadar, .red-alert RiskTrendPanel, .red-alert RunbookPanel,
+    .red-alert OllamaPanel, .red-alert AlertPanel, .red-alert AutopilotPanel,
+    .red-alert NewsFeed, .red-alert LogPanel, .red-alert TickerWidget {
+        border: round #880000;
+        background: #220000;
+        color: #ff3333;
+    }
+    .red-alert SystemPanel:focus, .red-alert ThroughputPanel:focus, .red-alert SysMetricsPanel:focus,
+    .red-alert RiskRadar:focus, .red-alert RiskTrendPanel:focus, .red-alert RunbookPanel:focus,
+    .red-alert OllamaPanel:focus, .red-alert AlertPanel:focus, .red-alert AutopilotPanel:focus,
+    .red-alert NewsFeed:focus, .red-alert LogPanel:focus, .red-alert TickerWidget:focus {
+        border: double #ff3333;
+    }
+    .red-alert.wallboard-mode SystemPanel, .red-alert.wallboard-mode ThroughputPanel, .red-alert.wallboard-mode SysMetricsPanel,
+    .red-alert.wallboard-mode RiskRadar, .red-alert.wallboard-mode RiskTrendPanel, .red-alert.wallboard-mode RunbookPanel,
+    .red-alert.wallboard-mode OllamaPanel, .red-alert.wallboard-mode AlertPanel, .red-alert.wallboard-mode AutopilotPanel,
+    .red-alert.wallboard-mode NewsFeed, .red-alert.wallboard-mode LogPanel, .red-alert.wallboard-mode TickerWidget {
+        border: double #ff3333;
+    }
+    .red-alert TickerWidget {
+        background: #220000;
+    }
+
+    /* 5. matrix */
+    .matrix Screen {
+        background: #000000;
+        color: #00ff00;
+    }
+    .matrix SystemPanel, .matrix ThroughputPanel, .matrix SysMetricsPanel,
+    .matrix RiskRadar, .matrix RiskTrendPanel, .matrix RunbookPanel,
+    .matrix OllamaPanel, .matrix AlertPanel, .matrix AutopilotPanel,
+    .matrix NewsFeed, .matrix LogPanel, .matrix TickerWidget {
+        border: round #00ff00;
+        background: #000000;
+        color: #00ff00;
+    }
+    .matrix SystemPanel:focus, .matrix ThroughputPanel:focus, .matrix SysMetricsPanel:focus,
+    .matrix RiskRadar:focus, .matrix RiskTrendPanel:focus, .matrix RunbookPanel:focus,
+    .matrix OllamaPanel:focus, .matrix AlertPanel:focus, .matrix AutopilotPanel:focus,
+    .matrix NewsFeed:focus, .matrix LogPanel:focus, .matrix TickerWidget:focus {
+        border: double #00ff00;
+    }
+    .matrix.wallboard-mode SystemPanel, .matrix.wallboard-mode ThroughputPanel, .matrix.wallboard-mode SysMetricsPanel,
+    .matrix.wallboard-mode RiskRadar, .matrix.wallboard-mode RiskTrendPanel, .matrix.wallboard-mode RunbookPanel,
+    .matrix.wallboard-mode OllamaPanel, .matrix.wallboard-mode AlertPanel, .matrix.wallboard-mode AutopilotPanel,
+    .matrix.wallboard-mode NewsFeed, .matrix.wallboard-mode LogPanel, .matrix.wallboard-mode TickerWidget {
+        border: double #00ff00;
+    }
+    .matrix TickerWidget {
+        background: #000000;
+    }
+
+    /* 6. bloomberg */
+    .bloomberg Screen {
+        background: #000033;
+        color: #ff8800;
+    }
+    .bloomberg SystemPanel, .bloomberg ThroughputPanel, .bloomberg SysMetricsPanel,
+    .bloomberg RiskRadar, .bloomberg RiskTrendPanel, .bloomberg RunbookPanel,
+    .bloomberg OllamaPanel, .bloomberg AlertPanel, .bloomberg AutopilotPanel,
+    .bloomberg NewsFeed, .bloomberg LogPanel, .bloomberg TickerWidget {
+        border: round #0044bb;
+        background: #000022;
+        color: #ff8800;
+    }
+    .bloomberg SystemPanel:focus, .bloomberg ThroughputPanel:focus, .bloomberg SysMetricsPanel:focus,
+    .bloomberg RiskRadar:focus, .bloomberg RiskTrendPanel:focus, .bloomberg RunbookPanel:focus,
+    .bloomberg OllamaPanel:focus, .bloomberg AlertPanel:focus, .bloomberg AutopilotPanel:focus,
+    .bloomberg NewsFeed:focus, .bloomberg LogPanel:focus, .bloomberg TickerWidget:focus {
+        border: double #ff8800;
+    }
+    .bloomberg.wallboard-mode SystemPanel, .bloomberg.wallboard-mode ThroughputPanel, .bloomberg.wallboard-mode SysMetricsPanel,
+    .bloomberg.wallboard-mode RiskRadar, .bloomberg.wallboard-mode RiskTrendPanel, .bloomberg.wallboard-mode RunbookPanel,
+    .bloomberg.wallboard-mode OllamaPanel, .bloomberg.wallboard-mode AlertPanel, .bloomberg.wallboard-mode AutopilotPanel,
+    .bloomberg.wallboard-mode NewsFeed, .bloomberg.wallboard-mode LogPanel, .bloomberg.wallboard-mode TickerWidget {
+        border: double #ff8800;
+    }
+    .bloomberg TickerWidget {
+        background: #000022;
+    }
+
+    /* 7. trading-desk */
+    .trading-desk Screen {
+        background: #1c1c1c;
+        color: #00ffff;
+    }
+    .trading-desk SystemPanel, .trading-desk ThroughputPanel, .trading-desk SysMetricsPanel,
+    .trading-desk RiskRadar, .trading-desk RiskTrendPanel, .trading-desk RunbookPanel,
+    .trading-desk OllamaPanel, .trading-desk AlertPanel, .trading-desk AutopilotPanel,
+    .trading-desk NewsFeed, .trading-desk LogPanel, .trading-desk TickerWidget {
+        border: round #444444;
+        background: #222222;
+        color: #00ffff;
+    }
+    .trading-desk SystemPanel:focus, .trading-desk ThroughputPanel:focus, .trading-desk SysMetricsPanel:focus,
+    .trading-desk RiskRadar:focus, .trading-desk RiskTrendPanel:focus, .trading-desk RunbookPanel:focus,
+    .trading-desk OllamaPanel:focus, .trading-desk AlertPanel:focus, .trading-desk AutopilotPanel:focus,
+    .trading-desk NewsFeed:focus, .trading-desk LogPanel:focus, .trading-desk TickerWidget:focus {
+        border: double #00ffff;
+    }
+    .trading-desk.wallboard-mode SystemPanel, .trading-desk.wallboard-mode ThroughputPanel, .trading-desk.wallboard-mode SysMetricsPanel,
+    .trading-desk.wallboard-mode RiskRadar, .trading-desk.wallboard-mode RiskTrendPanel, .trading-desk.wallboard-mode RunbookPanel,
+    .trading-desk.wallboard-mode OllamaPanel, .trading-desk.wallboard-mode AlertPanel, .trading-desk.wallboard-mode AutopilotPanel,
+    .trading-desk.wallboard-mode NewsFeed, .trading-desk.wallboard-mode LogPanel, .trading-desk.wallboard-mode TickerWidget {
+        border: double #00ffff;
+    }
+    .trading-desk TickerWidget {
+        background: #222222;
+    }
+
+    /* 8. midnight */
+    .midnight Screen {
+        background: #000000;
+        color: #ffffff;
+    }
+    .midnight SystemPanel, .midnight ThroughputPanel, .midnight SysMetricsPanel,
+    .midnight RiskRadar, .midnight RiskTrendPanel, .midnight RunbookPanel,
+    .midnight OllamaPanel, .midnight AlertPanel, .midnight AutopilotPanel,
+    .midnight NewsFeed, .midnight LogPanel, .midnight TickerWidget {
+        border: round #333333;
+        background: #000000;
+        color: #ffffff;
+    }
+    .midnight SystemPanel:focus, .midnight ThroughputPanel:focus, .midnight SysMetricsPanel:focus,
+    .midnight RiskRadar:focus, .midnight RiskTrendPanel:focus, .midnight RunbookPanel:focus,
+    .midnight OllamaPanel:focus, .midnight AlertPanel:focus, .midnight AutopilotPanel:focus,
+    .midnight NewsFeed:focus, .midnight LogPanel:focus, .midnight TickerWidget:focus {
+        border: double #ffffff;
+    }
+    .midnight.wallboard-mode SystemPanel, .midnight.wallboard-mode ThroughputPanel, .midnight.wallboard-mode SysMetricsPanel,
+    .midnight.wallboard-mode RiskRadar, .midnight.wallboard-mode RiskTrendPanel, .midnight.wallboard-mode RunbookPanel,
+    .midnight.wallboard-mode OllamaPanel, .midnight.wallboard-mode AlertPanel, .midnight.wallboard-mode AutopilotPanel,
+    .midnight.wallboard-mode NewsFeed, .midnight.wallboard-mode LogPanel, .midnight.wallboard-mode TickerWidget {
+        border: double #ffffff;
+    }
+    .midnight TickerWidget {
+        background: #000000;
     }
 
     HeaderWidget {
@@ -151,21 +314,6 @@ class P3NocApp(App):
         row-gap: 1;
     }
 
-    SystemPanel, ThroughputPanel, SysMetricsPanel, RiskRadar, RiskTrendPanel, OllamaPanel, AlertPanel, RunbookPanel, NewsFeed, LogPanel, TickerWidget, AutopilotPanel {
-        border: round var(--border);
-        background: var(--panel-bg);
-        color: var(--text);
-    }
-
-    SystemPanel:focus, ThroughputPanel:focus, SysMetricsPanel:focus, RiskRadar:focus, RiskTrendPanel:focus, OllamaPanel:focus, AlertPanel:focus, RunbookPanel:focus, NewsFeed:focus, LogPanel:focus, TickerWidget:focus, AutopilotPanel:focus {
-        border: double var(--primary);
-    }
-
-    /* Wallboard Mode Formatting */
-    .wallboard-mode SystemPanel, .wallboard-mode ThroughputPanel, .wallboard-mode SysMetricsPanel, .wallboard-mode RiskRadar, .wallboard-mode RiskTrendPanel, .wallboard-mode OllamaPanel, .wallboard-mode AlertPanel, .wallboard-mode RunbookPanel, .wallboard-mode NewsFeed, .wallboard-mode LogPanel, .wallboard-mode TickerWidget, .wallboard-mode AutopilotPanel {
-        border: double var(--primary);
-    }
-
     NewsFeed {
         height: 9;
         margin: 0 1 1 1;
@@ -179,7 +327,6 @@ class P3NocApp(App):
     TickerWidget {
         height: 3;
         margin: 0 1;
-        background: var(--panel-bg);
     }
     """
 
@@ -856,15 +1003,10 @@ class WeeklyReportDialog(ModalScreen):
         padding: 1 2;
         width: 65;
         height: 18;
-        border: thick var(--primary, #00ff00);
-        background: var(--background, #001100);
-        color: var(--text, #00ff00);
     }
     #report-title {
         text-align: center;
         text-style: bold;
-        background: var(--primary);
-        color: var(--background);
         margin-bottom: 1;
     }
     #report-body {
@@ -874,6 +1016,87 @@ class WeeklyReportDialog(ModalScreen):
     }
     #close-btn {
         width: 100%;
+    }
+
+    /* Explicit theme styles for #report-box and #report-title to avoid CSS variables */
+    .matrix-green #report-box {
+        border: thick #00ff00;
+        background: #041404;
+        color: #00ff00;
+    }
+    .matrix-green #report-title {
+        background: #00ff00;
+        color: #020a02;
+    }
+
+    .amber-crt #report-box {
+        border: thick #ffb000;
+        background: #140d00;
+        color: #ffb000;
+    }
+    .amber-crt #report-title {
+        background: #ffb000;
+        color: #0a0600;
+    }
+
+    .cyber-blue #report-box {
+        border: thick #00f0ff;
+        background: #001222;
+        color: #00f0ff;
+    }
+    .cyber-blue #report-title {
+        background: #00f0ff;
+        color: #000911;
+    }
+
+    .red-alert #report-box {
+        border: thick #ff3333;
+        background: #220000;
+        color: #ff3333;
+    }
+    .red-alert #report-title {
+        background: #ff3333;
+        color: #110000;
+    }
+
+    .matrix #report-box {
+        border: thick #00ff00;
+        background: #000000;
+        color: #00ff00;
+    }
+    .matrix #report-title {
+        background: #00ff00;
+        color: #000000;
+    }
+
+    .bloomberg #report-box {
+        border: thick #ff8800;
+        background: #000022;
+        color: #ff8800;
+    }
+    .bloomberg #report-title {
+        background: #ff8800;
+        color: #000033;
+    }
+
+    .trading-desk #report-box {
+        border: thick #00ffff;
+        background: #222222;
+        color: #00ffff;
+    }
+    .trading-desk #report-title {
+        background: #00ffff;
+        color: #1c1c1c;
+    }
+
+    .midnight #report-box {
+        border: thick #ffffff;
+        background: #000000;
+        color: #ffffff;
+    }
+    .midnight #report-title {
+        background: #ffffff;
+        color: #000000;
     }
     """
 
@@ -892,9 +1115,7 @@ class WeeklyReportDialog(ModalScreen):
         )
 
     def on_mount(self):
-        theme = THEME_COLORS.get(self.theme_name, THEME_COLORS["matrix-green"])
-        primary = theme["primary"]
-        self.styles.border = ("thick", primary)
+        self.add_class(self.theme_name)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "close-btn":
