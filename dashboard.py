@@ -22,6 +22,7 @@ from services.btc_ticker_service import BTCTickerService
 from services.recovery_service import RecoveryService
 from services.autopilot_service import AutopilotService
 from services.routing_service import RoutingService
+from services.ai_server_service import AiServerService
 
 # Import custom widgets
 from widgets.header import HeaderWidget
@@ -38,6 +39,7 @@ from widgets.risk_trend_panel import RiskTrendPanel
 from widgets.confirmation_dialog import ConfirmationDialog
 from widgets.runbook_panel import RunbookPanel
 from widgets.autopilot_panel import AutopilotPanel
+from widgets.ai_server_status_panel import AiServerStatusPanel
 
 import logging
 logger = logging.getLogger("dashboard")
@@ -343,7 +345,7 @@ class P3NocApp(App):
         layout: grid;
         grid-size: 3;
         grid-columns: 1fr 1.5fr 1fr;
-        height: 24;
+        height: 28;
         margin: 0 1 1 1;
     }
 
@@ -363,8 +365,8 @@ class P3NocApp(App):
 
     #right-col {
         layout: grid;
-        grid-size: 1 3;
-        grid-rows: 1fr 1.3fr 1.2fr; /* Ollama, Alerts, Autopilot */
+        grid-size: 1 4;
+        grid-rows: 1fr 1fr 1.3fr 1.2fr; /* Ollama, Alerts, Autopilot, AiServerStatus */
         grid-gutter: 1;
     }
 
@@ -381,6 +383,103 @@ class P3NocApp(App):
     TickerWidget {
         height: 3;
         margin: 0 1;
+    }
+
+    /* AiServerStatusPanel Theme styles */
+    .matrix-green AiServerStatusPanel {
+        border: round #008800;
+        background: #041404;
+        color: #00ff00;
+    }
+    .matrix-green AiServerStatusPanel:focus {
+        border: double #00ff00;
+    }
+    .matrix-green.wallboard-mode AiServerStatusPanel {
+        border: double #00ff00;
+    }
+
+    .amber-crt AiServerStatusPanel {
+        border: round #aa7000;
+        background: #140d00;
+        color: #ffb000;
+    }
+    .amber-crt AiServerStatusPanel:focus {
+        border: double #ffb000;
+    }
+    .amber-crt.wallboard-mode AiServerStatusPanel {
+        border: double #ffb000;
+    }
+
+    .cyber-blue AiServerStatusPanel {
+        border: round #006699;
+        background: #001222;
+        color: #00f0ff;
+    }
+    .cyber-blue AiServerStatusPanel:focus {
+        border: double #00f0ff;
+    }
+    .cyber-blue.wallboard-mode AiServerStatusPanel {
+        border: double #00f0ff;
+    }
+
+    .red-alert AiServerStatusPanel {
+        border: round #880000;
+        background: #220000;
+        color: #ff3333;
+    }
+    .red-alert AiServerStatusPanel:focus {
+        border: double #ff3333;
+    }
+    .red-alert.wallboard-mode AiServerStatusPanel {
+        border: double #ff3333;
+    }
+
+    .matrix AiServerStatusPanel {
+        border: round #00ff00;
+        background: #000000;
+        color: #00ff00;
+    }
+    .matrix AiServerStatusPanel:focus {
+        border: double #00ff00;
+    }
+    .matrix.wallboard-mode AiServerStatusPanel {
+        border: double #00ff00;
+    }
+
+    .bloomberg AiServerStatusPanel {
+        border: round #0044bb;
+        background: #000022;
+        color: #ff8800;
+    }
+    .bloomberg AiServerStatusPanel:focus {
+        border: double #ff8800;
+    }
+    .bloomberg.wallboard-mode AiServerStatusPanel {
+        border: double #ff8800;
+    }
+
+    .trading-desk AiServerStatusPanel {
+        border: round #444444;
+        background: #222222;
+        color: #00ffff;
+    }
+    .trading-desk AiServerStatusPanel:focus {
+        border: double #00ffff;
+    }
+    .trading-desk.wallboard-mode AiServerStatusPanel {
+        border: double #00ffff;
+    }
+
+    .midnight AiServerStatusPanel {
+        border: round #333333;
+        background: #000000;
+        color: #ffffff;
+    }
+    .midnight AiServerStatusPanel:focus {
+        border: double #ffffff;
+    }
+    .midnight.wallboard-mode AiServerStatusPanel {
+        border: double #ffffff;
     }
     """
 
@@ -426,12 +525,16 @@ class P3NocApp(App):
             ollama_service=self.ollama_service,
             routing_service=self.routing_service
         )
+        self.ai_server_service = AiServerService()
         
         # Runtime status states
         self.worker_online = True
         self.db_online = True
         self.ollama_online = True
         self.ingest_online = True
+        self.ai_server_status = "GREEN"
+        self.ai_server_first_offline = None
+        self.ai_server_flash_toggle = False
         
         # Cache OLLAMA configurations
         self.ollama_model = OLLAMA_MODEL
@@ -475,6 +578,7 @@ class P3NocApp(App):
                 yield self.safe_instantiate(OllamaPanel)
                 yield self.safe_instantiate(AlertPanel)
                 yield self.safe_instantiate(AutopilotPanel)
+                yield self.safe_instantiate(AiServerStatusPanel)
                 
         yield self.safe_instantiate(NewsFeed)
         yield self.safe_instantiate(LogPanel)
@@ -498,12 +602,15 @@ class P3NocApp(App):
         self.set_interval(REFRESH_RATES["db"], self.run_db_metrics_update)
         self.set_interval(REFRESH_RATES["ticker_fetch"], self.run_btc_ticker_update)
         self.set_interval(60.0, self.run_autopilot_cycle)
+        self.set_interval(10.0, self.run_ai_server_update)
+        self.set_interval(1.0, self.run_flash_timer)
 
         # 4. Trigger initial fetches
         self.run_status_and_logs_update()
         self.run_db_metrics_update()
         self.run_btc_ticker_update()
         self.run_autopilot_cycle()
+        self.run_ai_server_update()
 
     def activate_startup_safe_mode(self, reason: str):
         """Activates Safe Mode fallback on the dashboard."""
@@ -864,6 +971,7 @@ class P3NocApp(App):
             self.query_one(LogPanel).current_theme = new_theme
             self.query_one(TickerWidget).current_theme = new_theme
             self.query_one(AutopilotPanel).current_theme = new_theme
+            self.query_one(AiServerStatusPanel).current_theme = new_theme
         except Exception:
             pass
         
@@ -1096,7 +1204,8 @@ class P3NocApp(App):
                 "cpu": cpu,
                 "ram": ram,
                 "queue_remaining": throughput["remaining"],
-                "avg_latency": throughput["avg_time"]
+                "avg_latency": throughput["avg_time"],
+                "ai_server_status": self.ai_server_status
             }
             
             # 2. Run autopilot cycle on the AutopilotService
@@ -1146,6 +1255,111 @@ class P3NocApp(App):
                 header.status_str = health_state.overall_status
         except Exception as e:
             logger.error(f"Error updating autopilot UI: {e}")
+
+    # --- AI Server Monitoring Background Jobs & UI updates ---
+
+    def run_ai_server_update(self):
+        if self.startup_safe_mode_active:
+            return
+        self.run_worker(self._fetch_ai_server_job, thread=True)
+
+    def _fetch_ai_server_job(self):
+        try:
+            prev_status = self.ai_server_status
+            res = self.ai_server_service.perform_full_check()
+            new_status = res["status"]
+            
+            # Log transition if status changed
+            if prev_status != new_status:
+                severity = "INFO"
+                event = f"AI Server (R510) Status Transition: {prev_status} -> {new_status}"
+                action_taken = "Checked Ping, SSH, and Ollama status"
+                result = "OK"
+                
+                if new_status == "RED":
+                    severity = "CRITICAL"
+                    action_taken = "Ping/SSH check failed, flagged status as OFFLINE"
+                    result = "ALERT"
+                elif new_status == "YELLOW":
+                    severity = "WARNING"
+                    action_taken = "Ollama tag endpoint check failed, flagged status as DEGRADED"
+                    result = "WARNING"
+                else: # GREEN
+                    severity = "INFO"
+                    action_taken = "All checks passed (Ping, SSH, Ollama), flagged status as ONLINE"
+                    result = "RECOVERY"
+                
+                self.db_service.log_operations_event(
+                    severity=severity,
+                    event=event,
+                    action_taken=action_taken,
+                    result=result,
+                    host="r510"
+                )
+                
+            self.app.call_from_thread(self._update_ai_server_ui, res)
+        except Exception as e:
+            logger.error(f"Error in AI Server update job: {e}")
+
+    def _update_ai_server_ui(self, res):
+        self.ai_server_status = res["status"]
+        if self.ai_server_status == "RED":
+            if self.ai_server_first_offline is None:
+                self.ai_server_first_offline = time.time()
+        else:
+            self.ai_server_first_offline = None
+
+        # Check if offline > 5 minutes (300 seconds)
+        if self.ai_server_status == "RED" and self.ai_server_first_offline is not None:
+            time_offline = time.time() - self.ai_server_first_offline
+            self.ai_server_is_critical = (time_offline > 300)
+        else:
+            self.ai_server_is_critical = False
+
+        # Update Header Widget reactive variables
+        try:
+            header = self.query_one(HeaderWidget)
+            header.ai_server_status = self.ai_server_status
+            header.ai_server_is_critical = self.ai_server_is_critical
+        except Exception:
+            pass
+
+        # Update Alert Panel reactive variables
+        try:
+            alerts = self.query_one(AlertPanel)
+            alerts.ai_server_status = self.ai_server_status
+            alerts.ai_server_is_critical = self.ai_server_is_critical
+        except Exception:
+            pass
+
+        # Update AiServerStatusPanel reactive variables
+        try:
+            ai_panel = self.query_one(AiServerStatusPanel)
+            ai_panel.ping_latency = res["ping_latency"]
+            ai_panel.ssh_status = "ONLINE" if res["ssh_ok"] else "OFFLINE"
+            ai_panel.ollama_status = "ONLINE" if res["ollama_ok"] else "OFFLINE"
+            if res["status"] in ("GREEN", "YELLOW"):
+                from datetime import datetime
+                ai_panel.last_success = datetime.fromtimestamp(res["timestamp"]).strftime("%Y-%m-%d %H:%M:%S")
+        except Exception:
+            pass
+
+    def run_flash_toggle_timer(self):
+        # Kept for backward compatibility if called elsewhere
+        self.run_flash_timer()
+
+    def run_flash_timer(self):
+        self.ai_server_flash_toggle = not self.ai_server_flash_toggle
+        try:
+            header = self.query_one(HeaderWidget)
+            header.ai_server_flash_toggle = self.ai_server_flash_toggle
+        except Exception:
+            pass
+        try:
+            alerts = self.query_one(AlertPanel)
+            alerts.ai_server_flash_toggle = self.ai_server_flash_toggle
+        except Exception:
+            pass
 
     def generate_weekly_report(self, date_str):
         try:

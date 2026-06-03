@@ -33,6 +33,11 @@ class AlertPanel(Static):
     predictive_alerts = reactive([])
     startup_failures = reactive([])
     
+    # Remote AI Server Monitoring reactive states
+    ai_server_status = reactive("GREEN")
+    ai_server_is_critical = reactive(False)
+    ai_server_flash_toggle = reactive(False)
+    
     current_theme = reactive("matrix-green")
 
     def on_mount(self):
@@ -54,6 +59,21 @@ class AlertPanel(Static):
             content.append(" 🔴 MANUAL REVIEW REQUIRED\n\n", style="bold red")
         else:
             content.append("\n Active Alerts:\n\n", style=f"bold {primary}")
+
+        # AI Server Status Alert
+        if self.ai_server_status == "YELLOW":
+            content.append(" 🟡 AI SERVER DEGRADED (Ollama Offline)\n", style="bold yellow")
+        elif self.ai_server_status == "RED":
+            if self.ai_server_is_critical:
+                if self.ai_server_flash_toggle:
+                    content.append(" 🔴 CRITICAL: CHECK AI SERVER (R510) 🔴\n", style="bold white on red")
+                else:
+                    content.append(" 🔴 CRITICAL: CHECK AI SERVER (R510) 🔴\n", style="bold red on black")
+            else:
+                if self.ai_server_flash_toggle:
+                    content.append(" 🚨 ALERT: CHECK AI SERVER (R510) 🚨\n", style="bold white on red")
+                else:
+                    content.append(" 🚨 ALERT: CHECK AI SERVER (R510) 🚨\n", style="bold red")
 
         # Render Startup failures if any exist
         if self.startup_failures:
@@ -121,6 +141,15 @@ class AlertPanel(Static):
         # --- Smart Recommendations Section ---
         content.append("\n RECOMMENDED ACTIONS:\n", style=f"bold {primary}")
         recommendations = []
+
+        # AI Server Recommended Actions
+        if self.ai_server_status == "RED":
+            if self.ai_server_is_critical:
+                recommendations.append(("🚨 AI Server Offline > 5m", "Check R510 power/network link"))
+            else:
+                recommendations.append(("🔴 AI Server Unreachable", "Verify R510 ping & SSH service"))
+        elif self.ai_server_status == "YELLOW":
+            recommendations.append(("🟡 AI Server Degraded", "Check remote Ollama service manually"))
 
         # If locked, recommend unlocking
         if self.autopilot_locked:

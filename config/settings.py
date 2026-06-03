@@ -24,6 +24,10 @@ OLLAMA_HOST_NAME = os.getenv("OLLAMA_HOST_NAME", "r510")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:8b")
 OLLAMA_CONTEXT_LIMIT = int(os.getenv("OLLAMA_CONTEXT_LIMIT", "40960"))
 
+# AI Server Monitoring configurations
+AI_SERVER_HOST = os.getenv("AI_SERVER_HOST", "r510")
+AI_SERVER_IP = os.getenv("AI_SERVER_IP", "192.168.1.47")
+
 # Systemd services to monitor
 SERVICE_WORKER = os.getenv("SERVICE_WORKER", "bitcoin-worker")
 SERVICE_INGEST = os.getenv("SERVICE_INGEST", "bitcoin-ingest")

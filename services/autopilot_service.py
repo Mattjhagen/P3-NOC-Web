@@ -176,10 +176,14 @@ class AutopilotService:
         processing_count = telemetry.get("processing_queue", 0)
         oldest_age = telemetry.get("oldest_processing_age_mins", 0)
         ollama_fails = telemetry.get("ollama_failures", 0)
+        ai_server_state = telemetry.get("ai_server_status", "GREEN")
         
         if not db_ok:
             score -= 30
             issues.append("PostgreSQL Connection Offline")
+        if ai_server_state == "RED":
+            score -= 25
+            issues.append("AI Server (R510) Offline/Unreachable")
         if not worker_ok:
             score -= 15
             issues.append("Worker service Stopped")

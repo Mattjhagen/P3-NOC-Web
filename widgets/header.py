@@ -36,6 +36,11 @@ class HeaderWidget(Widget):
     
     status_str = reactive("HEALTHY")
     
+    # Remote AI Server Monitoring reactive states
+    ai_server_status = reactive("GREEN")
+    ai_server_is_critical = reactive(False)
+    ai_server_flash_toggle = reactive(False)
+    
     current_theme = reactive("matrix-green")
     compact_mode = reactive(False)
 
@@ -60,6 +65,24 @@ class HeaderWidget(Widget):
         else:
             status_banner = Text(" [SYSTEM STATUS: 🟢 HEALTHY]  ", style="bold white on green")
 
+        # Compute AI Server persistent status banner
+        ai_banner = Text()
+        if self.ai_server_status == "GREEN":
+            ai_banner = Text(" [AI SERVER: ONLINE] ", style="bold white on green")
+        elif self.ai_server_status == "YELLOW":
+            ai_banner = Text(" [⚠ AI SERVER DEGRADED] ", style="bold black on yellow")
+        else: # RED
+            if self.ai_server_is_critical:
+                if self.ai_server_flash_toggle:
+                    ai_banner = Text(" [🚨 CHECK AI SERVER (R510) 🚨] ", style="bold white on red")
+                else:
+                    ai_banner = Text(" [🚨 CHECK AI SERVER (R510) 🚨] ", style="bold red on black")
+            else:
+                if self.ai_server_flash_toggle:
+                    ai_banner = Text(" [🚨 CHECK AI SERVER (R510) 🚨] ", style="bold white on red")
+                else:
+                    ai_banner = Text(" [🚨 CHECK AI SERVER (R510) 🚨] ", style="bold red")
+
         # Build ASCII branding header if NOT in compact mode
         header_text = Text()
         if not self.compact_mode:
@@ -68,12 +91,16 @@ class HeaderWidget(Widget):
             header_text.append(logo)
             header_text.append(sub)
             header_text.append(status_banner)
+            header_text.append(" ")
+            header_text.append(ai_banner)
             header_text.append("\n")
         else:
             # Minimal compact logo
             header_text.append(Text(" P3 NOC ", style=f"bold reverse {primary_color}"))
             header_text.append(Text("   "))
             header_text.append(status_banner)
+            header_text.append(" ")
+            header_text.append(ai_banner)
             header_text.append(Text("\n"))
 
         # Build the Executive Summary Banner text
