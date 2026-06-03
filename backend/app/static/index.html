@@ -1,0 +1,1011 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>P3 NOC — Operations Command Center</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        dashboard: {
+                            bg: "#0B0C10",
+                            card: "#1F2833",
+                            accent: "#45A29E",
+                            neon: "#66FCF1",
+                            border: "#2C3539",
+                            healthy: "#10B981",
+                            warning: "#F59E0B",
+                            critical: "#EF4444",
+                        }
+                    },
+                    fontFamily: {
+                        mono: ['Courier New', 'Courier', 'monospace'],
+                    },
+                    boxShadow: {
+                        'glow-neon': '0 0 15px rgba(102, 252, 241, 0.35)',
+                        'glow-healthy': '0 0 15px rgba(16, 185, 129, 0.35)',
+                        'glow-warning': '0 0 15px rgba(245, 158, 11, 0.35)',
+                        'glow-critical': '0 0 15px rgba(239, 68, 68, 0.35)',
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Google Fonts Inter & Orbitron -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Orbitron:wght@400;500;700;900&display=swap" rel="stylesheet">
+    
+    <!-- React & Babel CDNs -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- ApexCharts CDN for beautiful graphs -->
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+
+    <!-- Lucide Icons CDN -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Custom CSS for glassmorphism and animations -->
+    <style>
+        body {
+            background-color: #0B0C10;
+            font-family: 'Inter', sans-serif;
+        }
+        .font-digital {
+            font-family: 'Orbitron', sans-serif;
+        }
+        .glass-panel {
+            background: rgba(31, 40, 51, 0.45);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        @keyframes pulse-glow-cyan {
+            0%, 100% {
+                box-shadow: 0 0 5px rgba(102, 252, 241, 0.2);
+                border-color: rgba(102, 252, 241, 0.2);
+            }
+            50% {
+                box-shadow: 0 0 15px rgba(102, 252, 241, 0.5);
+                border-color: rgba(102, 252, 241, 0.6);
+            }
+        }
+        .glow-active-tab {
+            animation: pulse-glow-cyan 3s infinite;
+        }
+        @keyframes beacon-pulse {
+            0% { transform: scale(0.9); opacity: 1; }
+            50% { transform: scale(1.4); opacity: 0.4; }
+            100% { transform: scale(1.8); opacity: 0; }
+        }
+        .status-beacon {
+            position: relative;
+        }
+        .status-beacon::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            border-radius: 9999px;
+            background-color: inherit;
+            animation: beacon-pulse 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(11, 12, 16, 0.5);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(69, 162, 158, 0.4);
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(102, 252, 241, 0.6);
+        }
+    </style>
+</head>
+<body class="text-gray-200 antialiased select-none overflow-x-hidden">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // ------------------ Axios Mock / HTTP wrapper ------------------
+        const api = {
+            async get(url, token) {
+                const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+                const res = await fetch(url, { headers });
+                if (!res.ok) throw new Error(`GET ${url} failed with status ${res.status}`);
+                return res.json();
+            },
+            async post(url, data, token) {
+                const headers = { 'Content-Type': 'application/json' };
+                if (token) headers['Authorization'] = `Bearer ${token}`;
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify(data)
+                });
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({ detail: 'Request failed' }));
+                    throw new Error(err.detail || 'Request failed');
+                }
+                return res.json();
+            },
+            async delete(url, token) {
+                const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+                const res = await fetch(url, { method: 'DELETE', headers });
+                if (!res.ok) throw new Error(`DELETE ${url} failed`);
+                return res.json();
+            }
+        };
+
+        // ------------------ App Layout Components ------------------
+
+        // Header Component
+        const Header = ({ healthScore, status, uptime, user, onLogout }) => {
+            const [timeStr, setTimeStr] = useState("");
+
+            useEffect(() => {
+                const updateTime = () => {
+                    const now = new Date();
+                    setTimeStr(now.toLocaleTimeString("en-US", { hour12: false }));
+                };
+                updateTime();
+                const interval = setInterval(updateTime, 1000);
+                return () => clearInterval(interval);
+            }, []);
+
+            const getScoreColorClass = (score) => {
+                if (score >= 90) return "text-emerald-400 border-emerald-400 bg-emerald-950/40";
+                if (score >= 50) return "text-amber-400 border-amber-400 bg-amber-950/40";
+                return "text-rose-500 border-rose-500 bg-rose-950/40";
+            };
+
+            const getScoreGlowClass = (score) => {
+                if (score >= 90) return "shadow-glow-healthy";
+                if (score >= 50) return "shadow-glow-warning";
+                return "shadow-glow-critical";
+            };
+
+            return (
+                <header className="glass-panel border-b border-dashboard-border px-6 py-4 flex flex-col md:flex-row items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                        <div className="bg-dashboard-neon/10 p-2 rounded-lg border border-dashboard-neon/30">
+                            <i data-lucide="server" className="w-6 h-6 text-dashboard-neon"></i>
+                        </div>
+                        <div>
+                            <h1 className="text-xl font-bold tracking-wider text-white font-digital">P3 OPERATIONS CENTER</h1>
+                            <p className="text-xs text-dashboard-accent tracking-widest font-mono">NOC COMMAND WEB GATEWAY</p>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center flex-wrap justify-center gap-6">
+                        <div className="flex items-center gap-3">
+                            <div className={`px-3 py-1.5 rounded border font-digital text-lg font-bold flex items-center gap-2 transition-all duration-300 ${getScoreColorClass(healthScore)} ${getScoreGlowClass(healthScore)}`}>
+                                <i data-lucide="activity" className="w-5 h-5 animate-pulse"></i>
+                                <span>SYS HEALTH: {healthScore}%</span>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-gray-300 font-mono">
+                            <span className="text-dashboard-accent">UPTIME:</span>
+                            <span className="text-white">{uptime}</span>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-5">
+                        <div className="flex items-center gap-2 text-dashboard-neon font-digital text-lg bg-black/40 px-3 py-1.5 rounded border border-dashboard-border">
+                            <i data-lucide="clock" className="w-4 h-4"></i>
+                            <span>{timeStr}</span>
+                        </div>
+                        {user && (
+                            <div className="flex items-center gap-3 pl-4 border-l border-dashboard-border">
+                                <div className="text-right">
+                                    <p className="text-sm font-semibold text-white">{user.username}</p>
+                                    <p className="text-xs text-dashboard-accent uppercase font-mono tracking-wider">{user.role}</p>
+                                </div>
+                                <button onClick={onLogout} className="bg-transparent hover:bg-rose-950/30 text-gray-400 hover:text-rose-400 p-2 rounded-lg border border-transparent hover:border-rose-950 transition-colors">
+                                    <i data-lucide="log-out" className="w-5 h-5"></i>
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </header>
+            );
+        };
+
+        // Sidebar Component
+        const Sidebar = ({ activeTab, setActiveTab, activeAlertCount }) => {
+            const tabs = [
+                { id: "dashboard", label: "Dashboard", icon: "layout-dashboard" },
+                { id: "chat", label: "AI Assistant", icon: "message-square-code" },
+                { id: "alerts", label: "Alerts & Logs", icon: "shield-alert", count: activeAlertCount },
+                { id: "admin", label: "System Admin", icon: "terminal" },
+            ];
+
+            return (
+                <aside className="w-full md:w-64 glass-panel border-r border-dashboard-border flex flex-col justify-between">
+                    <nav className="px-4 py-6 space-y-2">
+                        {tabs.map((tab) => {
+                            const isActive = activeTab === tab.id;
+                            return (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setActiveTab(tab.id)}
+                                    className={`w-full flex items-center justify-between px-4 py-3.5 rounded-lg border text-left transition-all duration-300 font-medium ${
+                                        isActive
+                                            ? "bg-dashboard-neon/10 text-dashboard-neon border-dashboard-neon/50 shadow-glow-neon glow-active-tab"
+                                            : "text-gray-400 hover:text-gray-200 bg-transparent border-transparent hover:bg-white/5"
+                                    }`}
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <i data-lucide={tab.icon} className={`w-5 h-5 ${isActive ? "text-dashboard-neon" : "text-gray-400"}`}></i>
+                                        <span className="text-sm font-semibold tracking-wider uppercase font-digital">{tab.label}</span>
+                                    </div>
+                                    {tab.count > 0 && (
+                                        <span className="bg-rose-500/20 text-rose-400 border border-rose-500/50 text-xs px-2 py-0.5 rounded-full font-bold font-digital">
+                                            {tab.count}
+                                        </span>
+                                    )}
+                                </button>
+                            );
+                        })}
+                    </nav>
+                    <div className="p-4 border-t border-dashboard-border bg-black/20 text-center text-xs text-dashboard-accent font-mono">
+                        <p>P3 NOC Web Interface</p>
+                    </div>
+                </aside>
+            );
+        };
+
+        // Login Component
+        const Login = ({ onLoginSuccess }) => {
+            const [isRegister, setIsRegister] = useState(false);
+            const [username, setUsername] = useState("");
+            const [password, setPassword] = useState("");
+            const [role, setRole] = useState("viewer");
+            const [errorMsg, setErrorMsg] = useState("");
+            const [isLoading, setIsLoading] = useState(false);
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                setErrorMsg("");
+                setIsLoading(true);
+
+                try {
+                    if (isRegister) {
+                        await api.post("/api/auth/register", { username, password, role });
+                    }
+
+                    const params = new URLSearchParams();
+                    params.append("username", username);
+                    params.append("password", password);
+
+                    const res = await fetch("/api/auth/login", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                        body: params
+                    });
+
+                    if (!res.ok) throw new Error("Incorrect username or password");
+                    const data = await res.json();
+                    
+                    onLoginSuccess(data.access_token, username, data.role);
+                } catch (err) {
+                    setErrorMsg(err.message || "Authentication failed.");
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+
+            return (
+                <div className="min-h-screen flex items-center justify-center bg-[#0B0C10] p-4 relative">
+                    <div className="w-full max-w-md glass-panel rounded-2xl border border-dashboard-border shadow-glow-neon p-8 relative overflow-hidden">
+                        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-dashboard-accent via-dashboard-neon to-dashboard-accent" />
+                        <div className="text-center mb-8">
+                            <div className="inline-flex bg-dashboard-neon/10 p-3 rounded-full border border-dashboard-neon/30 mb-3 shadow-glow-neon">
+                                <i data-lucide="server" className="w-8 h-8 text-dashboard-neon"></i>
+                            </div>
+                            <h2 className="text-2xl font-bold tracking-widest text-white font-digital uppercase">P3 NOC</h2>
+                            <p className="text-xs text-dashboard-accent tracking-widest font-mono mt-1">ACCESS DECK AUTHORIZATION</p>
+                        </div>
+
+                        {errorMsg && (
+                            <div className="mb-6 p-3 rounded border border-rose-500/30 bg-rose-950/20 text-rose-400 text-sm text-center font-mono">
+                                {errorMsg}
+                            </div>
+                        )}
+
+                        <form onSubmit={handleSubmit} className="space-y-5">
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-mono text-dashboard-accent uppercase tracking-wider block">Operator ID</label>
+                                <input type="text" required value={username} onChange={e => setUsername(e.target.value)} placeholder="username" className="w-full px-4 py-3 bg-black/40 border border-dashboard-border rounded-lg text-white font-mono placeholder-gray-600 focus:outline-none focus:border-dashboard-neon" />
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-mono text-dashboard-accent uppercase tracking-wider block">Security Keycode</label>
+                                <input type="password" required value={password} onChange={e => setPassword(e.target.value)} placeholder="password" className="w-full px-4 py-3 bg-black/40 border border-dashboard-border rounded-lg text-white font-mono placeholder-gray-600 focus:outline-none focus:border-dashboard-neon" />
+                            </div>
+                            {isRegister && (
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-mono text-dashboard-accent uppercase tracking-wider block">Role Scope</label>
+                                    <select value={role} onChange={e => setRole(e.target.value)} className="w-full px-4 py-3 bg-black/40 border border-dashboard-border rounded-lg text-white font-mono focus:outline-none focus:border-dashboard-neon">
+                                        <option value="admin">Admin</option>
+                                        <option value="operator">Operator</option>
+                                        <option value="viewer">Viewer</option>
+                                    </select>
+                                </div>
+                            )}
+                            <button type="submit" disabled={isLoading} className="w-full bg-dashboard-neon text-black font-semibold uppercase tracking-widest py-3.5 rounded-lg hover:bg-white transition-all shadow-glow-neon font-digital">
+                                {isLoading ? "Processing..." : isRegister ? "Provision Account" : "Access Console"}
+                            </button>
+                        </form>
+                        <div className="mt-6 text-center text-xs font-mono text-gray-400">
+                            <button onClick={() => setIsRegister(!isRegister)} className="text-dashboard-accent hover:text-dashboard-neon underline bg-transparent">
+                                {isRegister ? "Already registered? Access Console" : "First install? Setup Admin Account"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // MetricsCard Component
+        const MetricsCard = ({ t310, r510, queueCounts }) => {
+            const getBarColor = (val) => {
+                if (val >= 85) return "bg-rose-500 shadow-glow-critical";
+                if (val >= 60) return "bg-amber-500 shadow-glow-warning";
+                return "bg-emerald-400 shadow-glow-healthy";
+            };
+
+            const getTextColor = (val) => {
+                if (val >= 85) return "text-rose-400";
+                if (val >= 60) return "text-amber-400";
+                return "text-emerald-400";
+            };
+
+            return (
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                    {/* T310 Card */}
+                    <div className="glass-panel rounded-xl p-6 border border-dashboard-border relative overflow-hidden">
+                        <div className="absolute top-0 left-0 right-0 h-0.5 bg-dashboard-neon/40" />
+                        <div className="flex items-center justify-between mb-6 pb-4 border-b border-dashboard-border">
+                            <div className="flex items-center gap-3">
+                                <i data-lucide="server" className="w-5 h-5 text-dashboard-neon"></i>
+                                <div>
+                                    <h3 className="text-md font-bold font-digital tracking-wider text-white">DELL PowerEdge T310</h3>
+                                    <p className="text-[10px] text-dashboard-accent font-mono tracking-widest">NOC HOST NODE</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 status-beacon inline-block"></span>
+                                <span className="text-xs font-semibold text-emerald-400 font-digital">ONLINE</span>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-4 mb-6">
+                            <div className="bg-black/20 p-3 rounded-lg border border-dashboard-border/30">
+                                <p className="text-[10px] text-dashboard-accent font-mono mb-1">CPU LOAD</p>
+                                <p className={`text-md font-bold font-digital ${getTextColor(t310.cpu_percent)}`}>{t310.cpu_percent}%</p>
+                            </div>
+                            <div className="bg-black/20 p-3 rounded-lg border border-dashboard-border/30">
+                                <p className="text-[10px] text-dashboard-accent font-mono mb-1">RAM USED</p>
+                                <p className={`text-md font-bold font-digital ${getTextColor(t310.ram_percent)}`}>{t310.ram_percent}%</p>
+                            </div>
+                            <div className="bg-black/20 p-3 rounded-lg border border-dashboard-border/30">
+                                <p className="text-[10px] text-dashboard-accent font-mono mb-1">DISK TEMP</p>
+                                <p className={`text-md font-bold font-digital`}>{t310.disk_percent}%</p>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4 text-xs font-mono">
+                            <div className="space-y-2 bg-black/10 p-3 rounded-lg">
+                                <div className="flex justify-between border-b border-dashboard-border/20 pb-1">
+                                    <span className="text-dashboard-accent">NET RX:</span>
+                                    <span className="text-white">{t310.network_rx_kbps} KB/s</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-dashboard-accent">NET TX:</span>
+                                    <span className="text-white">{t310.network_tx_kbps} KB/s</span>
+                                </div>
+                            </div>
+                            <div className="space-y-2 bg-black/10 p-3 rounded-lg">
+                                <div className="flex justify-between border-b border-dashboard-border/20 pb-1">
+                                    <span className="text-dashboard-accent">WORKER:</span>
+                                    <span className="text-emerald-400 font-bold">ACTIVE</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-dashboard-accent">QUEUE:</span>
+                                    <span className="text-dashboard-neon font-digital">{queueCounts.pending} pending</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* R510 Card */}
+                    <div className="glass-panel rounded-xl p-6 border border-dashboard-border relative overflow-hidden">
+                        <div className="absolute top-0 left-0 right-0 h-0.5 bg-dashboard-accent/40" />
+                        <div className="flex items-center justify-between mb-6 pb-4 border-b border-dashboard-border">
+                            <div className="flex items-center gap-3">
+                                <i data-lucide="cpu" className="w-5 h-5 text-dashboard-accent"></i>
+                                <div>
+                                    <h3 className="text-md font-bold font-digital tracking-wider text-white">DELL PowerEdge R510</h3>
+                                    <p className="text-[10px] text-dashboard-accent font-mono tracking-widest">AI INFERENCE NODE</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className={`w-2.5 h-2.5 rounded-full status-beacon inline-block ${r510.online ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
+                                <span className={`text-xs font-semibold font-digital ${r510.online ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                    {r510.online ? "ONLINE" : "OFFLINE"}
+                                </span>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-4 mb-6">
+                            <div className="bg-black/20 p-3 rounded-lg border border-dashboard-border/30">
+                                <p className="text-[10px] text-dashboard-accent font-mono mb-1">CPU LOAD</p>
+                                <p className={`text-md font-bold font-digital ${getTextColor(r510.cpu_percent)}`}>{r510.cpu_percent}%</p>
+                            </div>
+                            <div className="bg-black/20 p-3 rounded-lg border border-dashboard-border/30">
+                                <p className="text-[10px] text-dashboard-accent font-mono mb-1">VRAM LOAD</p>
+                                <p className="text-md font-bold font-digital text-white">{r510.ram_percent}%</p>
+                            </div>
+                            <div className="bg-black/20 p-3 rounded-lg border border-dashboard-border/30">
+                                <p className="text-[10px] text-dashboard-accent font-mono mb-1">PING TIME</p>
+                                <p className="text-md font-bold font-digital text-dashboard-neon">{r510.ping_latency_ms} ms</p>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4 text-xs font-mono">
+                            <div className="space-y-2 bg-black/10 p-3 rounded-lg">
+                                <div className="flex justify-between border-b border-dashboard-border/20 pb-1">
+                                    <span className="text-dashboard-accent">SSH (22):</span>
+                                    <span className={r510.ssh_status === 'ONLINE' ? 'text-emerald-400 font-bold' : 'text-rose-400'}>{r510.ssh_status}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-dashboard-accent">OLLAMA (11434):</span>
+                                    <span className={r510.ollama_status === 'ONLINE' ? 'text-emerald-400 font-bold' : 'text-rose-400'}>{r510.ollama_status}</span>
+                                </div>
+                            </div>
+                            <div className="space-y-2 bg-black/10 p-3 rounded-lg">
+                                <div className="flex justify-between border-b border-dashboard-border/20 pb-1">
+                                    <span className="text-dashboard-accent">MODEL:</span>
+                                    <span className="text-white truncate max-w-[90px]" title={r510.active_model}>{r510.active_model}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-dashboard-accent">VRAM MEM:</span>
+                                    <span className="text-dashboard-neon font-digital">{r510.loaded_memory_gb} GB</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // ChartsPanel Component (using ApexCharts)
+        const ChartsPanel = ({ metrics, selectedRange, setSelectedRange }) => {
+            const chartRef = useRef(null);
+
+            useEffect(() => {
+                if (!metrics || metrics.length === 0) return;
+
+                const options = {
+                    series: [
+                        { name: "T310 CPU Load", data: metrics.map(m => m.t310_cpu) },
+                        { name: "R510 CPU Load", data: metrics.map(m => m.r510_cpu) }
+                    ],
+                    chart: {
+                        type: 'area',
+                        height: 240,
+                        background: 'transparent',
+                        foreColor: '#8A939E',
+                        toolbar: { show: false },
+                        animations: { enabled: false }
+                    },
+                    colors: ['#66FCF1', '#45A29E'],
+                    dataLabels: { enabled: false },
+                    stroke: { curve: 'smooth', width: 2 },
+                    grid: { borderColor: '#2C3539', strokeDashArray: 3 },
+                    fill: {
+                        type: 'gradient',
+                        gradient: {
+                            shadeIntensity: 1,
+                            opacityFrom: 0.3,
+                            opacityTo: 0,
+                            stops: [0, 100]
+                        }
+                    },
+                    xaxis: {
+                        categories: metrics.map(m => {
+                            const date = new Date(m.timestamp);
+                            return date.toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
+                        }),
+                        labels: { show: true }
+                    },
+                    theme: { mode: 'dark' }
+                };
+
+                const chart = new ApexCharts(chartRef.current, options);
+                chart.render();
+
+                return () => chart.destroy();
+            }, [metrics]);
+
+            return (
+                <div className="glass-panel rounded-xl p-6 border border-dashboard-border space-y-4">
+                    <div className="flex items-center justify-between border-b border-dashboard-border pb-4">
+                        <h3 className="text-sm font-bold font-digital tracking-wider text-white">SYS LOADING HISTORIES</h3>
+                        <div className="flex bg-black/40 rounded-lg p-1 border border-dashboard-border">
+                            {["1h", "24h", "7d", "30d"].map(r => (
+                                <button key={r} onClick={() => setSelectedRange(r)} className={`px-3 py-1 rounded text-xs font-semibold font-digital ${selectedRange === r ? "bg-dashboard-neon/15 text-dashboard-neon border border-dashboard-neon/30" : "text-gray-400"}`}>
+                                    {r.toUpperCase()}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                    <div ref={chartRef} className="w-full h-64"></div>
+                </div>
+            );
+        };
+
+        // ChatInterface Component
+        const ChatInterface = ({ token, availableModels }) => {
+            const [conversations, setConversations] = useState([]);
+            const [activeConvId, setActiveConvId] = useState(null);
+            const [messages, setMessages] = useState([]);
+            const [inputVal, setInputVal] = useState("");
+            const [selectedModel, setSelectedModel] = useState("qwen3:8b");
+            const [isStreaming, setIsStreaming] = useState(false);
+            const chatEndRef = useRef(null);
+
+            useEffect(() => {
+                if (availableModels.length > 0) {
+                    setSelectedModel(availableModels[0]);
+                }
+            }, [availableModels]);
+
+            const fetchConversations = async () => {
+                try {
+                    const data = await api.get("/api/chat/conversations", token);
+                    setConversations(data);
+                    if (data.length > 0 && activeConvId === null) {
+                        setActiveConvId(data[0].id);
+                    }
+                } catch (e) {
+                    console.error(e);
+                }
+            };
+
+            useEffect(() => {
+                fetchConversations();
+            }, []);
+
+            useEffect(() => {
+                if (activeConvId !== null) {
+                    api.get(`/api/chat/conversations/${activeConvId}/messages`, token).then(setMessages);
+                } else {
+                    setMessages([]);
+                }
+            }, [activeConvId]);
+
+            useEffect(() => {
+                chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+            }, [messages]);
+
+            const handleNewChat = async () => {
+                try {
+                    const title = `Session #${conversations.length + 1}`;
+                    const res = await api.post("/api/chat/conversations", { title }, token);
+                    setConversations(prev => [res, ...prev]);
+                    setActiveConvId(res.id);
+                } catch (e) {
+                    console.error(e);
+                }
+            };
+
+            const handleDeleteChat = async (e, id) => {
+                e.stopPropagation();
+                try {
+                    await api.delete(`/api/chat/conversations/${id}`, token);
+                    setConversations(prev => prev.filter(c => c.id !== id));
+                    if (activeConvId === id) setActiveConvId(null);
+                } catch (e) {
+                    console.error(e);
+                }
+            };
+
+            const handleSend = async (e) => {
+                e.preventDefault();
+                if (!inputVal.trim() || activeConvId === null || isStreaming) return;
+
+                const userText = inputVal;
+                setInputVal("");
+                setIsStreaming(true);
+
+                const updated = [...messages, { role: "user", content: userText }];
+                setMessages(updated);
+                const streamIdx = updated.length;
+                setMessages(prev => [...prev, { role: "assistant", content: "" }]);
+
+                try {
+                    const response = await fetch(`/api/chat/conversations/${activeConvId}/messages`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "Authorization": `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ content: userText, model: selectedModel })
+                    });
+
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder("utf-8");
+                    let accum = "";
+
+                    while (true) {
+                        const { value, done } = await reader.read();
+                        if (done) break;
+
+                        const text = decoder.decode(value);
+                        const lines = text.split("\n");
+                        for (const line of lines) {
+                            if (line.trim().startsWith("data: ")) {
+                                const dataStr = line.replace("data: ", "").trim();
+                                try {
+                                    const parsed = JSON.parse(dataStr);
+                                    if (parsed.message?.content) {
+                                        accum += parsed.message.content;
+                                    }
+                                    setMessages(prev => {
+                                        const copy = [...prev];
+                                        if (copy[streamIdx]) copy[streamIdx].content = accum;
+                                        return copy;
+                                    });
+                                } catch {}
+                            }
+                        }
+                    }
+                } catch (err) {
+                    setMessages(prev => {
+                        const copy = [...prev];
+                        if (copy[streamIdx]) copy[streamIdx].content = "Ollama query timed out. Simulating response fallback.";
+                        return copy;
+                    });
+                } finally {
+                    setIsStreaming(false);
+                    fetchConversations();
+                }
+            };
+
+            return (
+                <div className="glass-panel rounded-xl border border-dashboard-border flex h-[500px] overflow-hidden">
+                    <div className="w-56 border-r border-dashboard-border bg-black/10 p-2 flex flex-col justify-between shrink-0">
+                        <div>
+                            <div className="flex items-center justify-between p-2 mb-2 border-b border-dashboard-border/30">
+                                <span className="text-xs font-mono font-bold text-dashboard-accent">CHATS</span>
+                                <button onClick={handleNewChat} className="p-1 rounded bg-dashboard-neon/15 hover:bg-dashboard-neon text-dashboard-neon hover:text-black">
+                                    <i data-lucide="plus" className="w-3.5 h-3.5"></i>
+                                </button>
+                            </div>
+                            <div className="space-y-1 overflow-y-auto max-h-[380px]">
+                                {conversations.map(c => (
+                                    <button key={c.id} onClick={() => setActiveConvId(c.id)} className={`w-full flex justify-between items-center p-2 rounded text-xs font-mono ${activeConvId === c.id ? 'bg-dashboard-accent/20 text-dashboard-neon border border-dashboard-accent/30' : 'text-gray-400 hover:bg-white/5'}`}>
+                                        <span className="truncate max-w-[130px]">{c.title}</span>
+                                        <span onClick={e => handleDeleteChat(e, c.id)} className="text-gray-500 hover:text-rose-400"><i data-lucide="trash-2" className="w-3 h-3"></i></span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex-1 flex flex-col justify-between bg-black/5">
+                        <div className="p-3 border-b border-dashboard-border flex items-center justify-between bg-black/15">
+                            <span className="text-xs font-digital font-bold text-white">AI INFERENCE SHELL</span>
+                            <select value={selectedModel} onChange={e => setSelectedModel(e.target.value)} className="bg-black border border-dashboard-border text-white text-xs px-2 py-1 rounded font-mono focus:outline-none">
+                                {availableModels.map(m => <option key={m} value={m}>{m}</option>)}
+                            </select>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-4 space-y-4 font-mono text-xs">
+                            {messages.map((m, idx) => (
+                                <div key={idx} className={`p-3 rounded-lg border max-w-[80%] ${m.role === 'user' ? 'bg-dashboard-accent/10 border-dashboard-accent/30 ml-auto text-right' : 'bg-dashboard-card border-dashboard-border mr-auto text-left'}`}>
+                                    <span className="text-[10px] text-dashboard-accent block mb-1 uppercase font-bold">{m.role}</span>
+                                    <p className="whitespace-pre-wrap select-text">{m.content}</p>
+                                </div>
+                            ))}
+                            <div ref={chatEndRef} />
+                        </div>
+
+                        <form onSubmit={handleSend} className="p-3 border-t border-dashboard-border flex gap-2">
+                            <input type="text" value={inputVal} onChange={e => setInputVal(e.target.value)} placeholder="Type a message..." className="flex-1 px-3 py-2 bg-black border border-dashboard-border focus:border-dashboard-neon rounded text-white font-mono placeholder-gray-700 focus:outline-none" />
+                            <button type="submit" className="px-4 py-2 bg-dashboard-neon text-black font-semibold rounded font-digital text-xs uppercase hover:bg-white">Send</button>
+                        </form>
+                    </div>
+                </div>
+            );
+        };
+
+        // AlertsPanel Component
+        const AlertsPanel = ({ alerts, onRefresh }) => {
+            return (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div className="glass-panel rounded-xl p-5 border border-dashboard-border h-96 flex flex-col">
+                        <div className="border-b border-dashboard-border pb-3 mb-3 flex items-center justify-between">
+                            <span className="text-xs font-digital font-bold text-white">ACTIVE EVENTS REGISTRY</span>
+                        </div>
+                        <div className="flex-1 overflow-y-auto space-y-3">
+                            {alerts.critical.map((a, i) => (
+                                <div key={`c-${i}`} className="p-3 rounded border border-rose-500/30 bg-rose-950/10 text-rose-300 font-mono text-xs flex items-center gap-2">
+                                    <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>
+                                    <span>{a}</span>
+                                </div>
+                            ))}
+                            {alerts.warning.map((a, i) => (
+                                <div key={`w-${i}`} className="p-3 rounded border border-amber-500/30 bg-amber-950/10 text-amber-300 font-mono text-xs">
+                                    <span>{a}</span>
+                                </div>
+                            ))}
+                            {alerts.critical.length === 0 && alerts.warning.length === 0 && (
+                                <div className="h-full flex items-center justify-center text-gray-500 font-mono text-xs">NO INCIDENTS REGISTERED</div>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="lg:col-span-2 glass-panel rounded-xl p-5 border border-dashboard-border h-96 flex flex-col">
+                        <div className="border-b border-dashboard-border pb-3 mb-3 flex items-center justify-between">
+                            <span className="text-xs font-digital font-bold text-white">SYSTEM RECOVERY JOURNAL</span>
+                            <button onClick={onRefresh} className="p-1 rounded bg-black border border-dashboard-border text-xs text-dashboard-accent hover:text-dashboard-neon"><i data-lucide="refresh-cw" className="w-3.5 h-3.5"></i></button>
+                        </div>
+                        <div className="flex-1 bg-black/40 border border-dashboard-border/50 rounded p-3 font-mono text-[11px] overflow-y-auto space-y-2 select-text">
+                            {alerts.logs.map(log => (
+                                <div key={log.id} className="flex justify-between border-b border-dashboard-border/10 pb-1">
+                                    <span><span className="text-gray-600">[{log.timestamp.slice(11, 19)}]</span> <span className="text-amber-400">[{log.severity}]</span> {log.event} ({log.action_taken})</span>
+                                    <span className={log.result === 'SUCCESS' ? 'text-emerald-400' : 'text-rose-500'}>{log.result}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // AdminPanel Component
+        const AdminPanel = ({ status, token, onActionCompleted }) => {
+            const [msg, setMsg] = useState(null);
+
+            const triggerAction = async (path, label) => {
+                setMsg(null);
+                try {
+                    const res = await api.post(`/api/recovery/${path}`, {}, token);
+                    setMsg({ type: "success", text: res.message });
+                    onActionCompleted();
+                } catch (e) {
+                    setMsg({ type: "error", text: e.message });
+                }
+            };
+
+            return (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div className="glass-panel rounded-xl p-5 border border-dashboard-border h-80 flex flex-col justify-between">
+                        <div>
+                            <div className="border-b border-dashboard-border pb-3 mb-4">
+                                <span className="text-xs font-digital font-bold text-white">AUTOPILOT DIAGNOSTICS</span>
+                            </div>
+                            <div className="space-y-3 font-mono text-xs">
+                                <div className="flex justify-between"><span>STATUS:</span><span className="text-emerald-400 font-bold">{status.overall_status}</span></div>
+                                <div className="flex justify-between"><span>HEALTH COEFF:</span><span className="text-white font-bold">{status.overall_health_score}%</span></div>
+                                <div className="flex justify-between"><span>SAFETY LOCKS:</span><span className="text-gray-500">{status.autopilot_locked ? "TRIPPED" : "NORMAL"}</span></div>
+                            </div>
+                        </div>
+                        <button onClick={() => triggerAction("unlock", "Bypass Locks")} className="w-full py-2.5 bg-rose-950/20 text-rose-400 border border-rose-500/40 hover:bg-rose-500/20 rounded font-digital font-bold text-xs uppercase">Bypass Safety Locks</button>
+                    </div>
+
+                    <div className="lg:col-span-2 glass-panel rounded-xl p-5 border border-dashboard-border h-80 flex flex-col">
+                        <div className="border-b border-dashboard-border pb-3 mb-3">
+                            <span className="text-xs font-digital font-bold text-white">MANUAL CONTROL DECK</span>
+                        </div>
+                        {msg && <div className={`p-2 rounded text-xs font-mono mb-3 text-center ${msg.type === 'success' ? 'bg-emerald-950/25 border border-emerald-500/30 text-emerald-400' : 'bg-rose-950/25 border border-rose-500/30 text-rose-400'}`}>{msg.text}</div>}
+                        <div className="flex-1 grid grid-cols-2 gap-3 overflow-y-auto pr-1">
+                            {[
+                                { path: "restart-worker", label: "Restart Worker Node" },
+                                { path: "restart-ingest", label: "Restart Ingest Timer" },
+                                { path: "requeue-failed", label: "Requeue Queue Items" },
+                                { path: "clear-stuck", label: "Clear Stuck Processing" },
+                                { path: "restart-ollama", label: "Restart Ollama Service" },
+                                { path: "warm-model", label: "Pre-Warm Ollama Model" }
+                            ].map(a => (
+                                <div key={a.path} className="p-2.5 bg-black/15 border border-dashboard-border/50 rounded flex items-center justify-between">
+                                    <span className="text-[10px] font-mono font-bold text-white uppercase">{a.label}</span>
+                                    <button onClick={() => triggerAction(a.path, a.label)} className="px-2.5 py-1.5 bg-dashboard-accent/15 border border-dashboard-accent/30 hover:bg-dashboard-neon text-dashboard-accent hover:text-black rounded text-[10px] font-digital uppercase font-bold tracking-wider">Trigger</button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // Reconnecting WebSocket React Hook
+        const useWebSocket = (url, enabled = true) => {
+            const [data, setData] = useState(null);
+            const [isConnected, setIsConnected] = useState(false);
+            const wsRef = useRef(null);
+            const reconnectTimeoutRef = useRef(null);
+
+            const connect = () => {
+                if (!enabled) return;
+                if (wsRef.current) wsRef.current.close();
+
+                // Build absolute WebSocket URL
+                const loc = window.location;
+                const protocol = loc.protocol === "https:" ? "wss:" : "ws:";
+                const wsUrl = `${protocol}//${loc.host}${url}`;
+
+                console.log("Connecting WebSocket:", wsUrl);
+                const ws = new WebSocket(wsUrl);
+                wsRef.current = ws;
+
+                ws.onopen = () => {
+                    setIsConnected(true);
+                };
+
+                ws.onmessage = (event) => {
+                    try {
+                        setData(JSON.parse(event.data));
+                    } catch (e) {
+                        console.error(e);
+                    }
+                };
+
+                ws.onclose = () => {
+                    setIsConnected(false);
+                    wsRef.current = null;
+                    reconnectTimeoutRef.current = setTimeout(connect, 3000);
+                };
+
+                ws.onerror = () => {
+                    ws.close();
+                };
+            };
+
+            useEffect(() => {
+                if (enabled) {
+                    connect();
+                } else {
+                    if (wsRef.current) wsRef.current.close();
+                    if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
+                }
+                return () => {
+                    if (wsRef.current) wsRef.current.close();
+                    if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
+                };
+            }, [url, enabled]);
+
+            return { data, isConnected };
+        };
+
+        // ------------------ Main App Root Component ------------------
+        const App = () => {
+            const [token, setToken] = useState(localStorage.getItem("p3_noc_token"));
+            const [user, setUser] = useState(null);
+            const [activeTab, setActiveTab] = useState("dashboard");
+            const [selectedRange, setSelectedRange] = useState("1h");
+            
+            const [telemetry, setTelemetry] = useState(null);
+            const [historicalMetrics, setHistoricalMetrics] = useState([]);
+            const [alerts, setAlerts] = useState({ critical: [], warning: [], info: [], logs: [] });
+            const [availableModels, setAvailableModels] = useState(["qwen3:8b", "phi3:mini"]);
+
+            // Reconnect websocket
+            const { data: wsData } = useWebSocket("/ws/status", token !== null);
+
+            useEffect(() => {
+                if (wsData) {
+                    setTelemetry(wsData);
+                    if (wsData.r510?.available_models) {
+                        setAvailableModels(wsData.r510.available_models);
+                    }
+                }
+            }, [wsData]);
+
+            // Sync User profile session
+            useEffect(() => {
+                if (token) {
+                    api.get("/api/auth/me", token)
+                        .then(setUser)
+                        .catch(handleLogout);
+                } else {
+                    setUser(null);
+                }
+            }, [token]);
+
+            const fetchData = async () => {
+                if (!token) return;
+                try {
+                    const metrics = await api.get(`/api/metrics?range=${selectedRange}`, token);
+                    setHistoricalMetrics(metrics);
+                    const alertData = await api.get("/api/alerts", token);
+                    setAlerts(alertData);
+                } catch (e) {
+                    console.error(e);
+                }
+            };
+
+            useEffect(() => {
+                fetchData();
+                const interval = setInterval(fetchData, 8000);
+                return () => clearInterval(interval);
+            }, [token, selectedRange]);
+
+            // Redraw icons once elements mount
+            useEffect(() => {
+                if (lucide) lucide.createIcons();
+            }, [token, activeTab, telemetry, alerts]);
+
+            const handleLoginSuccess = (jwtToken, username, role) => {
+                localStorage.setItem("p3_noc_token", jwtToken);
+                setToken(jwtToken);
+                setUser({ username, role });
+            };
+
+            const handleLogout = () => {
+                localStorage.removeItem("p3_noc_token");
+                setToken(null);
+                setUser(null);
+            };
+
+            if (!token) {
+                return <Login onLoginSuccess={handleLoginSuccess} />;
+            }
+
+            const score = telemetry?.overall_health_score ?? 100;
+            const status = telemetry?.overall_status ?? "HEALTHY";
+            const uptime = telemetry?.uptime ?? "0d 0h 0m";
+            const queueCounts = telemetry?.queue_counts ?? { pending: 0, processing: 0, completed: 0, failed: 0 };
+            const t310 = telemetry?.t310 ?? { cpu_percent: 0, ram_percent: 0, disk_percent: 0, network_rx_kbps: 0, network_tx_kbps: 0, load_avg: [0,0,0] };
+            const r510 = telemetry?.r510 ?? { online: false, cpu_percent: 0, ram_percent: 0, ping_latency_ms: 0, ssh_status: 'OFFLINE', ollama_status: 'OFFLINE', active_model: 'None', loaded_memory_gb: 0 };
+
+            const activeAlertCount = (telemetry?.active_issues?.length ?? 0) + alerts.critical.length + alerts.warning.length;
+
+            return (
+                <div className="min-h-screen flex flex-col bg-dashboard-bg text-gray-150 relative">
+                    <Header healthScore={score} status={status} uptime={uptime} user={user} onLogout={handleLogout} />
+                    
+                    <div className="flex-1 flex flex-col md:flex-row">
+                        <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} activeAlertCount={activeAlertCount} />
+                        
+                        <main className="flex-1 p-6 space-y-6 overflow-y-auto max-h-[calc(100vh-80px)]">
+                            {activeTab === "dashboard" && (
+                                <React.Fragment>
+                                    <MetricsCard t310={t310} r510={r510} queueCounts={queueCounts} />
+                                    <ChartsPanel metrics={historicalMetrics} selectedRange={selectedRange} setSelectedRange={setSelectedRange} />
+                                </React.Fragment>
+                            )}
+                            {activeTab === "chat" && (
+                                <ChatInterface token={token} availableModels={availableModels} />
+                            )}
+                            {activeTab === "alerts" && (
+                                <AlertsPanel alerts={alerts} onRefresh={fetchData} />
+                            )}
+                            {activeTab === "admin" && (
+                                <AdminPanel status={{ overall_health_score: score, overall_status: status, autopilot_locked: telemetry?.autopilot_locked ?? false }} token={token} onActionCompleted={fetchData} />
+                            )}
+                        </main>
+                    </div>
+                </div>
+            );
+        };
+
+        // Render React DOM Node
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>

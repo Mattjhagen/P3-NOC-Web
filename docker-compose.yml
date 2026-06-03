@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  # 1. PostgreSQL Database Service
+  postgres:
+    image: postgres:15-alpine
+    container_name: p3_postgres
+    restart: always
+    environment:
+      POSTGRES_DB: bitcoin_research
+      POSTGRES_USER: researcher
+      POSTGRES_PASSWORD: secure_password_change_me
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U researcher -d bitcoin_research"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # 2. FastAPI Backend Service
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.backend
+    container_name: p3_backend
+    restart: always
+    environment:
+      - DATABASE_URL=postgresql://researcher:secure_password_change_me@postgres:5432/bitcoin_research
+      - SECRET_KEY=p3-operations-center-super-secure-secret-key-change-me
+      - OLLAMA_HOST=192.168.1.47
+      - OLLAMA_PORT=11434
+      - AI_SERVER_IP=192.168.1.47
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # We don't expose ports directly to host, Nginx handles entrypoint
+    expose:
+      - "8000"
+
+  # 3. React Frontend Service
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.frontend
+    container_name: p3_frontend
+    restart: always
+    expose:
+      - "80"
+
+  # 4. Gateway Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: p3_gateway
+    restart: always
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - backend
+      - frontend
+
+volumes:
+  postgres_data:
