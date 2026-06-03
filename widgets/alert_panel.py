@@ -5,8 +5,8 @@ from config.themes import THEME_COLORS
 
 class AlertPanel(Static):
     """
-    Displays real-time operational alerts and the Smart Recommendations Engine.
-    Triggers runbook suggestion highlights based on active system metrics.
+    Displays real-time operational alerts, Smart Recommendations,
+    and trend-based Predictive Anomaly Warnings.
     """
     # Active states for alerts
     ollama_online = reactive(True)
@@ -27,7 +27,11 @@ class AlertPanel(Static):
     active_ollama_model = reactive("")
     env_ollama_model = reactive("")
     
+    # v5 Autopilot & Predictive states
+    autopilot_locked = reactive(False)
+    predictive_alerts = reactive([])
     startup_failures = reactive([])
+    
     current_theme = reactive("matrix-green")
 
     def on_mount(self):
@@ -42,17 +46,27 @@ class AlertPanel(Static):
         accent = theme["accent"]
 
         content = Text()
-        content.append("\n Active Alerts:\n\n", style=f"bold {primary}")
+        
+        # 0. Check Autopilot Lockout
+        if self.autopilot_locked:
+            content.append("\n 🔴 AUTOPILOT LOCKED\n", style="bold reverse red")
+            content.append(" 🔴 MANUAL REVIEW REQUIRED\n\n", style="bold red")
+        else:
+            content.append("\n Active Alerts:\n\n", style=f"bold {primary}")
 
         # Render Startup failures if any exist
         if self.startup_failures:
             for fail in self.startup_failures:
                 content.append(f" 🔴 STARTUP: {fail}\n", style="bold red")
 
+        # Render Predictive Anomaly Warnings
+        if self.predictive_alerts:
+            for pred in self.predictive_alerts:
+                content.append(f" ⚠ TREND: {pred}\n", style="bold yellow reverse")
+
         # 1. Model Mismatch (Model Drift check)
         mismatch_active = False
         if self.env_ollama_model and self.active_ollama_model:
-            # Normalize strings for comparison
             if self.env_ollama_model.lower() != self.active_ollama_model.lower():
                 content.append(" ⚠ MODEL MISMATCH\n", style="bold reverse red")
                 mismatch_active = True
@@ -101,6 +115,10 @@ class AlertPanel(Static):
         content.append("\n RECOMMENDED ACTIONS:\n", style=f"bold {primary}")
         recommendations = []
 
+        # If locked, recommend unlocking
+        if self.autopilot_locked:
+            recommendations.append(("🔴 Autopilot Locked Out", "Run F12 Full Health Recovery to Unlock"))
+            
         # Rule 1: Ollama Offline
         if not self.ollama_online:
             recommendations.append(("🔴 Ollama Offline", "Run F10 Restart Ollama"))

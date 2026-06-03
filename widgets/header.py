@@ -34,9 +34,7 @@ class HeaderWidget(Widget):
     eta_str = reactive("0m")
     top_event_str = reactive("No headline intelligence received.")
     
-    # v4 Giant NOC Status Banner metrics
-    worker_efficiency = reactive(100.0)
-    avg_time = reactive(0.0)
+    status_str = reactive("HEALTHY")
     
     current_theme = reactive("matrix-green")
     compact_mode = reactive(False)
@@ -49,14 +47,14 @@ class HeaderWidget(Widget):
         error_color = theme["error"]
         warning_color = theme["warning"]
 
-        # Compute Giant NOC Status Banner:
-        # INCIDENT: db offline, worker offline, ollama offline, or success rate < 85%
-        # DEGRADED: latency > 120s, failed queue > 10, or success rate < 95%
-        # HEALTHY: default
-        if not self.db_status or not self.worker_status or not self.ollama_status or self.worker_efficiency < 85.0:
+        # Compute Giant NOC Status Banner based on Autopilot health status
+        status_upper = self.status_str.upper()
+        if "INCIDENT" in status_upper:
             status_banner = Text(" [SYSTEM STATUS: 🔴 INCIDENT] ", style="bold white on red")
-        elif self.avg_time > 120.0 or self.queue_remaining > 10 or self.worker_efficiency < 95.0:
+        elif "DEGRADED" in status_upper:
             status_banner = Text(" [SYSTEM STATUS: 🟡 DEGRADED] ", style="bold black on yellow")
+        elif "LOCKED" in status_upper:
+            status_banner = Text(" [AUTOPILOT: 🔴 LOCKED]       ", style="bold white on red reverse")
         else:
             status_banner = Text(" [SYSTEM STATUS: 🟢 HEALTHY]  ", style="bold white on green")
 

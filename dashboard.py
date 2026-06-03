@@ -7,8 +7,9 @@ import psutil
 from datetime import datetime
 from textual.app import App, ComposeResult
 from textual.containers import Container
-from textual.widgets import Footer
+from textual.widgets import Footer, Button, Static
 from textual.reactive import reactive
+from textual.screen import ModalScreen
 
 # Import configuration settings and themes
 from config.settings import REFRESH_RATES, OLLAMA_MODEL
@@ -19,6 +20,8 @@ from services.ollama_service import OllamaService
 from services.feed_service import FeedService
 from services.btc_ticker_service import BTCTickerService
 from services.recovery_service import RecoveryService
+from services.autopilot_service import AutopilotService
+from services.routing_service import RoutingService
 
 # Import custom widgets
 from widgets.header import HeaderWidget
@@ -34,6 +37,7 @@ from widgets.sys_metrics_panel import SysMetricsPanel
 from widgets.risk_trend_panel import RiskTrendPanel
 from widgets.confirmation_dialog import ConfirmationDialog
 from widgets.runbook_panel import RunbookPanel
+from widgets.autopilot_panel import AutopilotPanel
 
 class P3NocApp(App):
     """
@@ -135,30 +139,30 @@ class P3NocApp(App):
 
     #middle-col {
         layout: grid;
-        grid-size: 1 2;
-        grid-rows: 1fr 1fr;
+        grid-size: 1 3;
+        grid-rows: 1fr 1fr 1fr;
         row-gap: 1;
     }
 
     #right-col {
         layout: grid;
         grid-size: 1 3;
-        grid-rows: 1fr 1.3fr 1fr; /* Ollama, Alerts, Runbook Actions */
+        grid-rows: 1fr 1.3fr 1.2fr; /* Ollama, Alerts, Autopilot */
         row-gap: 1;
     }
 
-    SystemPanel, ThroughputPanel, SysMetricsPanel, RiskRadar, RiskTrendPanel, OllamaPanel, AlertPanel, RunbookPanel, NewsFeed, LogPanel, TickerWidget {
+    SystemPanel, ThroughputPanel, SysMetricsPanel, RiskRadar, RiskTrendPanel, OllamaPanel, AlertPanel, RunbookPanel, NewsFeed, LogPanel, TickerWidget, AutopilotPanel {
         border: round var(--border);
         background: var(--panel-bg);
         color: var(--text);
     }
 
-    SystemPanel:focus, ThroughputPanel:focus, SysMetricsPanel:focus, RiskRadar:focus, RiskTrendPanel:focus, OllamaPanel:focus, AlertPanel:focus, RunbookPanel:focus, NewsFeed:focus, LogPanel:focus, TickerWidget:focus {
+    SystemPanel:focus, ThroughputPanel:focus, SysMetricsPanel:focus, RiskRadar:focus, RiskTrendPanel:focus, OllamaPanel:focus, AlertPanel:focus, RunbookPanel:focus, NewsFeed:focus, LogPanel:focus, TickerWidget:focus, AutopilotPanel:focus {
         border: double var(--primary);
     }
 
     /* Wallboard Mode Formatting */
-    .wallboard-mode SystemPanel, .wallboard-mode ThroughputPanel, .wallboard-mode SysMetricsPanel, .wallboard-mode RiskRadar, .wallboard-mode RiskTrendPanel, .wallboard-mode OllamaPanel, .wallboard-mode AlertPanel, .wallboard-mode RunbookPanel, .wallboard-mode NewsFeed, .wallboard-mode LogPanel, .wallboard-mode TickerWidget {
+    .wallboard-mode SystemPanel, .wallboard-mode ThroughputPanel, .wallboard-mode SysMetricsPanel, .wallboard-mode RiskRadar, .wallboard-mode RiskTrendPanel, .wallboard-mode OllamaPanel, .wallboard-mode AlertPanel, .wallboard-mode RunbookPanel, .wallboard-mode NewsFeed, .wallboard-mode LogPanel, .wallboard-mode TickerWidget, .wallboard-mode AutopilotPanel {
         border: double var(--primary);
     }
 
@@ -184,6 +188,7 @@ class P3NocApp(App):
         ("l", "focus_logs", "Focus Logs"),
         ("n", "focus_news", "Focus News"),
         ("r", "focus_risk", "Focus Risk"),
+        ("w", "show_weekly_report", "Weekly Report"),
         ("f2", "next_theme", "Cycle Theme"),
         ("f3", "toggle_compact", "Toggle Compact"),
         ("f4", "toggle_fullscreen_logs", "Fullscreen Logs"),
@@ -212,6 +217,15 @@ class P3NocApp(App):
         self.ticker_service = BTCTickerService()
         self.recovery_service = RecoveryService()
         
+        self.routing_service = RoutingService()
+        self.autopilot_service = AutopilotService(
+            db_service=self.db_service,
+            recovery_service=self.recovery_service,
+            feed_service=self.feed_service,
+            ollama_service=self.ollama_service,
+            routing_service=self.routing_service
+        )
+        
         # Runtime status states
         self.worker_online = True
         self.db_online = True
@@ -223,6 +237,10 @@ class P3NocApp(App):
         
         # Startup checks failures cache
         self.startup_errors = []
+        
+        # Audit states
+        self.last_audit_date = None
+        self.latest_report_path = None
 
     def compose(self) -> ComposeResult:
         """Compose layout grid."""
@@ -237,11 +255,12 @@ class P3NocApp(App):
             with Container(id="middle-col"):
                 yield RiskRadar()
                 yield RiskTrendPanel()
+                yield RunbookPanel()
             
             with Container(id="right-col"):
                 yield OllamaPanel()
                 yield AlertPanel()
-                yield RunbookPanel()
+                yield AutopilotPanel()
                 
         yield NewsFeed()
         yield LogPanel()
@@ -264,11 +283,13 @@ class P3NocApp(App):
         self.set_interval(REFRESH_RATES["status"], self.run_status_and_logs_update)
         self.set_interval(REFRESH_RATES["db"], self.run_db_metrics_update)
         self.set_interval(REFRESH_RATES["ticker_fetch"], self.run_btc_ticker_update)
+        self.set_interval(60.0, self.run_autopilot_cycle)
 
         # 4. Trigger initial fetches
         self.run_status_and_logs_update()
         self.run_db_metrics_update()
         self.run_btc_ticker_update()
+        self.run_autopilot_cycle()
 
     def run_startup_validation(self):
         """Validate PostgreSQL, services, and feed health on startup."""
@@ -497,6 +518,7 @@ class P3NocApp(App):
         self.query_one(NewsFeed).current_theme = new_theme
         self.query_one(LogPanel).current_theme = new_theme
         self.query_one(TickerWidget).current_theme = new_theme
+        self.query_one(AutopilotPanel).current_theme = new_theme
         
         self.notify(f"Theme switched to: {THEME_NAMES[new_theme]}")
 
@@ -636,6 +658,7 @@ class P3NocApp(App):
 
     def _health_recovery_job(self):
         try:
+            self.autopilot_service.unlock_autopilot()
             results = self.recovery_service.execute_health_recovery(self.ollama_model)
             
             # Build checklist notification
@@ -644,13 +667,14 @@ class P3NocApp(App):
                 status_icon = "✓" if ok else "✗"
                 checklist_lines.append(f"[{status_icon}] {name}")
             
-            notification_msg = "Full Recovery Audit completed:\n" + "\n".join(checklist_lines)
+            notification_msg = "Full Recovery Audit completed & Autopilot Unlocked:\n" + "\n".join(checklist_lines)
             self.notify(notification_msg, severity="info" if all(ok for _, ok in results) else "warning")
             
             # Re-fetch UI metrics
             self.run_status_and_logs_update()
             self.run_db_metrics_update()
             self.run_btc_ticker_update()
+            self.run_autopilot_cycle()
         except Exception as e:
             self.notify(f"Health recovery runbook execution error: {e}", severity="error")
 
@@ -670,6 +694,215 @@ class P3NocApp(App):
                 next_focus_index = (i + 1) % len(widgets)
                 break
         widgets[next_focus_index].focus()
+
+    # --- Autopilot Service Background Workers ---
+
+    def run_autopilot_cycle(self):
+        self.run_worker(self._autopilot_cycle_job, thread=True)
+
+    def _autopilot_cycle_job(self):
+        try:
+            # 1. Gather all metrics needed for telemetry
+            db_ok = self.db_service.check_db_health()
+            worker_ok = self.feed_service.check_worker_service_status()
+            ingest_ok = self.feed_service.check_ingest_service_status()
+            ollama_stats = self.ollama_service.get_ollama_stats()
+            
+            queue_counts = self.db_service.get_queue_counts()
+            oldest_age = self.db_service.get_oldest_processing_age()
+            throughput = self.db_service.get_queue_throughput()
+            
+            cpu = psutil.cpu_percent()
+            ram = psutil.virtual_memory().percent
+            
+            telemetry = {
+                "db_online": db_ok,
+                "worker_online": worker_ok,
+                "ingest_online": ingest_ok,
+                "ollama_online": ollama_stats["status"] == "ONLINE",
+                "failed_queue": queue_counts["failed"],
+                "processing_queue": queue_counts["processing"],
+                "oldest_processing_age_mins": oldest_age,
+                "ollama_failures": ollama_stats["failures"],
+                "cpu": cpu,
+                "ram": ram,
+                "queue_remaining": throughput["remaining"],
+                "avg_latency": throughput["avg_time"]
+            }
+            
+            # 2. Run autopilot cycle on the AutopilotService
+            health_state = self.autopilot_service.execute_autopilot_cycle(telemetry)
+            
+            # 3. Retrieve the last 4 operations actions
+            last_actions = self.db_service.get_last_operations_actions(limit=4)
+            
+            # 4. Trigger UI update
+            self.app.call_from_thread(self._update_autopilot_ui, health_state, last_actions)
+            
+            # 5. Check if today is Sunday to run/generate weekly report
+            now = datetime.now()
+            if now.weekday() == 6:  # Sunday
+                date_str = now.strftime("%Y-%m-%d")
+                if self.last_audit_date != date_str:
+                    self.generate_weekly_report(date_str)
+        except Exception as e:
+            logger.error(f"Error in autopilot cycle job: {e}")
+
+    def _update_autopilot_ui(self, health_state, last_actions):
+        try:
+            # Update Autopilot panel
+            ap_panel = self.query_one(AutopilotPanel)
+            ap_panel.status_str = health_state.overall_status
+            ap_panel.health_score = health_state.score
+            ap_panel.uptime_days = self.autopilot_service.get_uptime_days()
+            ap_panel.actions_today = self.autopilot_service.total_recoveries_today
+            ap_panel.last_actions_list = last_actions
+            
+            # Update Alert panel values
+            alerts = self.query_one(AlertPanel)
+            alerts.autopilot_locked = self.autopilot_service.locked
+            alerts.predictive_alerts = self.autopilot_service.predictive_alerts
+            
+            # Update Header status_str
+            header = self.query_one(HeaderWidget)
+            header.status_str = health_state.overall_status
+        except Exception as e:
+            logger.error(f"Error updating autopilot UI: {e}")
+
+    def generate_weekly_report(self, date_str):
+        try:
+            metrics = self.db_service.get_weekly_audit_metrics()
+            
+            status = "LOCKED" if self.autopilot_service.locked else ("SAFE" if self.autopilot_service.safe_mode else "ACTIVE")
+            try:
+                health_score = self.query_one(AutopilotPanel).health_score
+            except Exception:
+                health_score = 100
+                
+            uptime_days = self.autopilot_service.get_uptime_days()
+            
+            report_content = f"""# P3 NOC — Weekly Autonomous Audit Report
+Date: {date_str}
+
+## System Performance Metrics (Last 7 Days)
+- Processed Articles: {metrics.get('processed', 0)}
+- Failed Queue Items: {metrics.get('failed', 0)}
+- Auto Recoveries Executed: {metrics.get('recovered', 0)}
+- Average Inference Latency: {metrics.get('avg_latency', 0.0):.2f}s
+
+## Subsystem Health Assessment
+- Autopilot Status: {status}
+- Health Score: {health_score}/100
+- Host Uptime: {uptime_days} Days
+
+Report generated autonomously by P3 NOC Autopilot.
+"""
+            report_dir = "/opt/p3-noc/reports"
+            try:
+                os.makedirs(report_dir, exist_ok=True)
+            except Exception:
+                report_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "reports")
+                os.makedirs(report_dir, exist_ok=True)
+                
+            report_path = os.path.join(report_dir, f"{date_str}-weekly-report.md")
+            with open(report_path, "w") as f:
+                f.write(report_content)
+                
+            self.last_audit_date = date_str
+            self.latest_report_path = report_path
+            self.app.call_from_thread(self.notify, f"Weekly audit report generated: {os.path.basename(report_path)}")
+        except Exception as e:
+            logger.error(f"Failed to generate weekly report: {e}")
+
+    def action_show_weekly_report(self):
+        """Display the weekly report."""
+        if not self.latest_report_path or not os.path.exists(self.latest_report_path):
+            self.notify("Generating current week report on demand...")
+            self.run_worker(self._generate_and_show_report_job, thread=True)
+        else:
+            self._show_report_modal(self.latest_report_path)
+
+    def _generate_and_show_report_job(self):
+        try:
+            today_str = datetime.now().strftime("%Y-%m-%d")
+            self.generate_weekly_report(today_str)
+            self.app.call_from_thread(self._show_report_modal, self.latest_report_path)
+        except Exception as e:
+            logger.error(f"Error generating/showing report on demand: {e}")
+            self.app.call_from_thread(self.notify, "Failed to generate report on demand", severity="error")
+
+    def _show_report_modal(self, filepath):
+        try:
+            with open(filepath, "r") as f:
+                content = f.read()
+            self.push_screen(
+                WeeklyReportDialog(
+                    title=f"WEEKLY AUDIT REPORT: {os.path.basename(filepath)}",
+                    report_text=content,
+                    theme_name=THEMES[self.theme_index]
+                )
+            )
+        except Exception as e:
+            self.notify(f"Could not read report file: {e}", severity="error")
+
+# --- Weekly Report Dialog & Autopilot Helpers ---
+
+class WeeklyReportDialog(ModalScreen):
+    CSS = """
+    WeeklyReportDialog {
+        align: center middle;
+    }
+    #report-box {
+        padding: 1 2;
+        width: 65;
+        height: 18;
+        border: thick var(--primary, #00ff00);
+        background: var(--background, #001100);
+        color: var(--text, #00ff00);
+    }
+    #report-title {
+        text-align: center;
+        text-style: bold;
+        background: var(--primary);
+        color: var(--background);
+        margin-bottom: 1;
+    }
+    #report-body {
+        height: 10;
+        margin-bottom: 1;
+        overflow-y: scroll;
+    }
+    #close-btn {
+        width: 100%;
+    }
+    """
+
+    def __init__(self, title: str, report_text: str, theme_name="matrix-green", **kwargs):
+        super().__init__(**kwargs)
+        self.title = title
+        self.report_text = report_text
+        self.theme_name = theme_name
+
+    def compose(self):
+        yield Container(
+            Static(self.title, id="report-title"),
+            Static(self.report_text, id="report-body"),
+            Button("Close [Esc/Enter]", variant="primary", id="close-btn"),
+            id="report-box"
+        )
+
+    def on_mount(self):
+        theme = THEME_COLORS.get(self.theme_name, THEME_COLORS["matrix-green"])
+        primary = theme["primary"]
+        self.styles.border = ("thick", primary)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "close-btn":
+            self.dismiss()
+
+    def on_key(self, event) -> None:
+        if event.key in ("escape", "enter", "space"):
+            self.dismiss()
 
 # --- Entry Point ---
 if __name__ == "__main__":
