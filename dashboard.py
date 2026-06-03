@@ -297,21 +297,21 @@ class P3NocApp(App):
         layout: grid;
         grid-size: 1 3;
         grid-rows: 1fr 1fr 1fr;
-        row-gap: 1;
+        grid-gutter: 1;
     }
 
     #middle-col {
         layout: grid;
         grid-size: 1 3;
         grid-rows: 1fr 1fr 1fr;
-        row-gap: 1;
+        grid-gutter: 1;
     }
 
     #right-col {
         layout: grid;
         grid-size: 1 3;
         grid-rows: 1fr 1.3fr 1.2fr; /* Ollama, Alerts, Autopilot */
-        row-gap: 1;
+        grid-gutter: 1;
     }
 
     NewsFeed {
