@@ -4,14 +4,22 @@ THEMES = [
     "matrix-green",
     "amber-crt",
     "cyber-blue",
-    "red-alert"
+    "red-alert",
+    "matrix",
+    "bloomberg",
+    "trading-desk",
+    "midnight"
 ]
 
 THEME_NAMES = {
     "matrix-green": "Matrix Green",
     "amber-crt": "Amber CRT",
     "cyber-blue": "Cyber Blue",
-    "red-alert": "Red Alert"
+    "red-alert": "Red Alert",
+    "matrix": "Matrix",
+    "bloomberg": "Bloomberg",
+    "trading-desk": "Trading Desk",
+    "midnight": "Midnight"
 }
 
 # Color configurations for manual rendering fallback (e.g. Rich console markup inside widgets)
@@ -63,5 +71,53 @@ THEME_COLORS = {
         "healthy": "green",
         "tag": "[bold red]",
         "tag_muted": "[red]",
+    },
+    "matrix": {
+        "primary": "bright_green",
+        "primary_bright": "bright_green",
+        "muted": "green",
+        "accent": "spring_green1",
+        "warning": "yellow",
+        "error": "red",
+        "critical": "bright_red",
+        "healthy": "bright_green",
+        "tag": "[bold bright_green]",
+        "tag_muted": "[bright_green]",
+    },
+    "bloomberg": {
+        "primary": "orange1",
+        "primary_bright": "bright_yellow",
+        "muted": "bright_blue",
+        "accent": "gold1",
+        "warning": "yellow",
+        "error": "red",
+        "critical": "bright_red",
+        "healthy": "orange1",
+        "tag": "[bold orange1]",
+        "tag_muted": "[orange1]",
+    },
+    "trading-desk": {
+        "primary": "cyan",
+        "primary_bright": "bright_cyan",
+        "muted": "grey50",
+        "accent": "deep_sky_blue1",
+        "warning": "yellow",
+        "error": "magenta",
+        "critical": "bright_magenta",
+        "healthy": "cyan",
+        "tag": "[bold cyan]",
+        "tag_muted": "[cyan]",
+    },
+    "midnight": {
+        "primary": "bright_white",
+        "primary_bright": "bright_white",
+        "muted": "grey37",
+        "accent": "white",
+        "warning": "grey70",
+        "error": "bright_white",
+        "critical": "bright_white",
+        "healthy": "bright_white",
+        "tag": "[bold bright_white]",
+        "tag_muted": "[bright_white]",
     }
 }

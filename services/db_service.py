@@ -187,3 +187,138 @@ class DBService:
         finally:
             if conn:
                 conn.close()
+
+    def get_processed_today(self) -> int:
+        """Count analyses processed today since midnight local time."""
+        conn = None
+        try:
+            conn = self.get_connection()
+            with conn.cursor() as cur:
+                # Count analyses since start of today
+                cur.execute("""
+                    SELECT COUNT(*) FROM analyses 
+                    WHERE created_at >= CURRENT_DATE;
+                """)
+                return cur.fetchone()[0]
+        except Exception as e:
+            logger.error(f"Failed to count processed today: {e}")
+            return 0
+        finally:
+            if conn:
+                conn.close()
+
+    def get_hourly_risk_history(self) -> list:
+        """
+        Query average risk (importance_score) grouped by hour for the last 24 hours.
+        Returns: list of exactly 24 integers representing hourly averages.
+        """
+        history = [0] * 24
+        conn = None
+        try:
+            conn = self.get_connection()
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT DATE_TRUNC('hour', created_at) AS hr, AVG(importance_score) as avg_risk
+                    FROM analyses
+                    WHERE created_at >= NOW() - INTERVAL '24 hours'
+                    GROUP BY hr
+                    ORDER BY hr ASC;
+                """)
+                rows = cur.fetchall()
+                
+                # Align rows into 24-hour bins
+                now = datetime.now()
+                # Create 24 hourly timestamps ending now
+                bins = [now - timedelta(hours=i) for i in range(23, -1, -1)]
+                
+                # Map query results to their closest bins
+                row_map = {}
+                for hr, avg_risk in rows:
+                    if hr:
+                        # Normalize timezone if necessary
+                        hr_naive = hr.replace(tzinfo=None)
+                        row_map[hr_naive.hour] = int(avg_risk)
+                
+                # Fill the history list
+                last_val = 0
+                for idx, b in enumerate(bins):
+                    h = b.hour
+                    if h in row_map:
+                        history[idx] = row_map[h]
+                        last_val = row_map[h]
+                    else:
+                        history[idx] = last_val # forward-fill last known risk level
+            return history
+        except Exception as e:
+            logger.error(f"Failed to fetch hourly risk history: {e}")
+            return [0] * 24
+        finally:
+            if conn:
+                conn.close()
+
+    def requeue_failed_items(self) -> bool:
+        """Requeue failed and dead_letter queue items by setting status='pending' and retry_count=0."""
+        conn = None
+        try:
+            conn = self.get_connection()
+            with conn.cursor() as cur:
+                cur.execute("""
+                    UPDATE processing_queue 
+                    SET status = 'pending', retry_count = 0, last_error = NULL, updated_at = CURRENT_TIMESTAMP
+                    WHERE status IN ('failed', 'dead_letter');
+                """)
+                conn.commit()
+            return True
+        except Exception as e:
+            logger.error(f"Failed to requeue failed items: {e}")
+            if conn:
+                conn.rollback()
+            return False
+        finally:
+            if conn:
+                conn.close()
+
+    def clear_stuck_processing(self) -> bool:
+        """Clear items stuck in 'processing' status for over 15 minutes by marking them 'failed'."""
+        conn = None
+        try:
+            conn = self.get_connection()
+            with conn.cursor() as cur:
+                cur.execute("""
+                    UPDATE processing_queue 
+                    SET status = 'failed', updated_at = CURRENT_TIMESTAMP
+                    WHERE status = 'processing' 
+                      AND updated_at <= CURRENT_TIMESTAMP - INTERVAL '15 minutes';
+                """)
+                conn.commit()
+            return True
+        except Exception as e:
+            logger.error(f"Failed to clear stuck processing items: {e}")
+            if conn:
+                conn.rollback()
+            return False
+        finally:
+            if conn:
+                conn.close()
+
+    def get_rss_feed_health(self) -> bool:
+        """Verify that RSS feeds are queryable and have successfully polled in the last 24 hours."""
+        conn = None
+        try:
+            conn = self.get_connection()
+            with conn.cursor() as cur:
+                # Check if there's any successful feed poll in the last 24 hours
+                cur.execute("""
+                    SELECT COUNT(*) FROM feed_sources 
+                    WHERE enabled = TRUE 
+                      AND (last_successful_poll IS NULL OR last_successful_poll >= NOW() - INTERVAL '24 hours');
+                """)
+                count = cur.fetchone()[0]
+                return count > 0
+        except Exception as e:
+            logger.error(f"Failed to check RSS feed health: {e}")
+            return False
+        finally:
+            if conn:
+                conn.close()
+

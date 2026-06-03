@@ -5,8 +5,8 @@ from config.themes import THEME_COLORS
 
 class AlertPanel(Static):
     """
-    Displays real-time operational alerts for system health,
-    inference failures, and database connection.
+    Displays real-time operational alerts and the Smart Recommendations Engine.
+    Triggers runbook suggestion highlights based on active system metrics.
     """
     # Active states for alerts
     ollama_online = reactive(True)
@@ -18,7 +18,16 @@ class AlertPanel(Static):
     max_retry = reactive(0)
     failed_queue_count = reactive(0)
     latest_risk_score = reactive(0)
+    worker_efficiency = reactive(100.0)
+    avg_time = reactive(0.0)
     
+    # v4 Smart Recommendations states
+    host_ram_percent = reactive(0.0)
+    queue_processing_count = reactive(0)
+    active_ollama_model = reactive("")
+    env_ollama_model = reactive("")
+    
+    startup_failures = reactive([])
     current_theme = reactive("matrix-green")
 
     def on_mount(self):
@@ -30,63 +39,102 @@ class AlertPanel(Static):
         error = theme["error"]
         warning = theme["warning"]
         healthy = theme["healthy"]
+        accent = theme["accent"]
 
         content = Text()
-        content.append("\n System Alerts:\n\n", style=f"bold {primary}")
+        content.append("\n Active Alerts:\n\n", style=f"bold {primary}")
 
-        alerts_found = False
+        # Render Startup failures if any exist
+        if self.startup_failures:
+            for fail in self.startup_failures:
+                content.append(f" 🔴 STARTUP: {fail}\n", style="bold red")
 
-        # Alert 1: Database status
-        if not self.db_online:
-            content.append(" 🔴 Database Offline\n", style="bold red")
-            alerts_found = True
-        else:
-            content.append(" 🟢 Database Healthy\n", style="green")
+        # 1. Model Mismatch (Model Drift check)
+        mismatch_active = False
+        if self.env_ollama_model and self.active_ollama_model:
+            # Normalize strings for comparison
+            if self.env_ollama_model.lower() != self.active_ollama_model.lower():
+                content.append(" ⚠ MODEL MISMATCH\n", style="bold reverse red")
+                mismatch_active = True
 
-        # Alert 2: Worker status
-        if not self.worker_active:
-            content.append(" 🔴 Worker Offline\n", style="bold red")
-            alerts_found = True
-        else:
-            content.append(" 🟢 Worker Active\n", style="green")
+        # 2. Bitcoin Risk Score > 80
+        if self.latest_risk_score >= 80:
+            content.append(f" 🔴 Bitcoin Risk Score > 80 ({self.latest_risk_score})\n", style="bold red")
+        elif self.latest_risk_score >= 50:
+            content.append(f" 🟡 Bitcoin Risk Score Elevated ({self.latest_risk_score})\n", style="bold yellow")
 
-        # Alert 3: Ollama Status & Timeouts
+        # 3. Ollama Offline / Timeouts
         if not self.ollama_online:
             content.append(" 🔴 Ollama Server Offline\n", style="bold red")
-            alerts_found = True
         elif self.ollama_failures >= 3:
-            content.append(" 🔴 Ollama Timeout Rate High\n", style="bold red")
-            alerts_found = True
-        elif self.ollama_failures > 0:
-            content.append(f" 🟡 Ollama Retries Active ({self.ollama_failures})\n", style="bold yellow")
-            alerts_found = True
+            content.append(f" 🔴 Ollama Timeout Spike ({self.ollama_failures} fails)\n", style="bold red")
+
+        # 4. Queue Failure Rate Rising
+        if self.worker_efficiency < 85.0:
+            content.append(f" 🔴 Queue Failure Rate Rising ({100.0 - self.worker_efficiency:.1f}% error)\n", style="bold red")
+        elif self.worker_efficiency < 95.0:
+            content.append(f" 🟡 Queue Failure Rate Rising ({100.0 - self.worker_efficiency:.1f}% error)\n", style="bold yellow")
+
+        # 5. Queue size alerts
+        if self.failed_queue_count > 25:
+            content.append(f" 🔴 Failed Queue > 25 ({self.failed_queue_count} items)\n", style="bold red")
+        elif self.failed_queue_count > 10:
+            content.append(f" 🟡 Failed Queue > 10 ({self.failed_queue_count} items)\n", style="bold yellow")
+
+        # 6. Ingest / Worker offline alerts
+        if not self.ingest_active:
+            content.append(" 🔴 Ingest Offline\n", style="bold red")
         else:
-            content.append(" 🟢 Ollama Online\n", style="green")
+            content.append(" 🟢 Ingest Running Normally\n", style="green")
 
-        # Alert 4: Retry Count
-        if self.max_retry >= 4:
-            content.append(f" 🔴 Retry Spike: Count {self.max_retry}\n", style="bold red")
-            alerts_found = True
-        elif self.max_retry >= 2:
-            content.append(f" 🟡 Worker Retry Spike\n", style="bold yellow")
-            alerts_found = True
+        if not self.worker_active:
+            content.append(" 🔴 Worker Offline\n", style="bold red")
 
-        # Alert 5: Queue Stall
-        if self.failed_queue_count > 15:
-            content.append(" 🔴 Queue Stalled (High Failures)\n", style="bold red")
-            alerts_found = True
-        elif self.failed_queue_count > 0:
-            content.append(f" 🟡 Queue Accumulating Fails ({self.failed_queue_count})\n", style="bold yellow")
-            alerts_found = True
+        if not self.db_online:
+            content.append(" 🔴 Database Offline\n", style="bold red")
+
+        # 7. Average analysis duration warning
+        if self.avg_time > 180.0:
+            content.append(f" 🟡 Average Analysis > 180s ({self.avg_time:.1f}s)\n", style="bold yellow")
+
+        # --- Smart Recommendations Section ---
+        content.append("\n RECOMMENDED ACTIONS:\n", style=f"bold {primary}")
+        recommendations = []
+
+        # Rule 1: Ollama Offline
+        if not self.ollama_online:
+            recommendations.append(("🔴 Ollama Offline", "Run F10 Restart Ollama"))
+        
+        # Rule 2: Memory Pressure
+        if self.host_ram_percent > 90.0:
+            recommendations.append(("🔴 Memory Pressure (>90% RAM)", "Run F10 Restart Ollama"))
+
+        # Rule 3: Worker Offline
+        if not self.worker_active:
+            recommendations.append(("🟡 Worker Not Running", "Run F6 Restart Worker"))
+
+        # Rule 4: Ollama Slow
+        if self.avg_time > 120.0:
+            recommendations.append(("🔴 Ollama Timeout Spike", "Run F11 Warm Model"))
+
+        # Rule 5: Queue Jam
+        if self.queue_processing_count > 5:
+            recommendations.append(("🟡 Processing Stuck", "Run F9 Clear Stuck"))
+
+        # Rule 6: Backlog
+        if self.failed_queue_count > 20:
+            recommendations.append(("🔴 Failed Queue > 20", "Run F8 Requeue Failed"))
+
+        # Rule 7: Model Mismatch
+        if mismatch_active:
+            recommendations.append(("⚠ Model Mismatch Active", "Configure env or Warm Cache"))
+
+        # Render recommendations
+        if recommendations:
+            for condition, action in recommendations:
+                content.append(f" {condition}\n", style="bold white")
+                content.append(f"  → {action}\n", style=accent)
         else:
-            content.append(" 🟢 Queue Healthy\n", style="green")
-
-        # Alert 6: Risk score alert
-        if self.latest_risk_score >= 80:
-            content.append(f" 🔴 Risk Critical: {self.latest_risk_score}/100\n", style="bold red")
-            alerts_found = True
-        elif self.latest_risk_score >= 50:
-            content.append(f" 🟡 Risk Elevated: {self.latest_risk_score}/100\n", style="bold yellow")
-            alerts_found = True
+            content.append(" 🟢 No active incidents detected\n", style="green")
 
         return content

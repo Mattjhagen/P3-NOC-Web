@@ -19,6 +19,7 @@ DATABASE_URL = os.getenv(
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://192.168.1.47:11434")
 OLLAMA_HOST_NAME = os.getenv("OLLAMA_HOST_NAME", "r510")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:8b")
+OLLAMA_CONTEXT_LIMIT = int(os.getenv("OLLAMA_CONTEXT_LIMIT", "40960"))
 
 # Systemd services to monitor
 SERVICE_WORKER = os.getenv("SERVICE_WORKER", "bitcoin-worker")

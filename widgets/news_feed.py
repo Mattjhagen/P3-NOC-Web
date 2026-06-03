@@ -15,21 +15,40 @@ class NewsFeed(DataTable):
         self.border_title = "NEWS FEED"
         self.cursor_type = "row"
         
-        # Configure columns
-        self.add_column("Status", width=6)
-        self.add_column("Title", width=50)
-        self.add_column("Risk", width=8)
+        # Configure columns as requested: Risk, Sentiment, Confidence, Impact, Title
+        self.add_column("Risk", width=12)
         self.add_column("Sentiment", width=12)
-        self.add_column("Importance", width=10)
+        self.add_column("Confidence", width=12)
+        self.add_column("Impact", width=14)
+        self.add_column("Title", width=60)
 
         # Set up a regular timer to auto-scroll the table
         self.set_interval(1.5, self.auto_scroll_row)
+
+    def classify_headline_impact(self, title: str) -> str:
+        """Classify article titles into impact categories based on keywords."""
+        t = title.lower()
+        if any(k in t for k in ["etf", "inflow", "outflow", "blackrock", "fidelity", "grayscale"]):
+            return "ETF"
+        if any(k in t for k in ["whale", "transfer", "moves", "mt. gox", "gox", "satoshi"]):
+            return "WHALE"
+        if any(k in t for k in ["hack", "exploit", "compromise", "phish", "steal", "vulnerability", "attack", "security"]):
+            return "SECURITY"
+        if any(k in t for k in ["mining", "miner", "hashrate", "halving", "difficulty"]):
+            return "MINING"
+        if any(k in t for k in ["sec", "regulatory", "ban", "lawsuit", "court", "compliance", "government", "regulation"]):
+            return "REGULATION"
+        if any(k in t for k in ["exchange", "binance", "coinbase", "kraken", "insolvency", "liquidity"]):
+            return "EXCHANGE"
+        if any(k in t for k in ["fed", "inflation", "interest rate", "macro", "economy", "cpi", "fomc"]):
+            return "MACRO"
+        return "MARKET"
 
     def update_articles(self, articles: list):
         """Update table data with latest articles."""
         self.clear()
         for art in articles:
-            # Calculate risk (importance_score)
+            # Risk (importance_score)
             risk = art.get("importance_score", 0)
             
             # Determine status dot
@@ -46,19 +65,37 @@ class NewsFeed(DataTable):
             # Align styles based on theme
             theme = THEME_COLORS.get(self.current_theme, THEME_COLORS["matrix-green"])
             text_style = "white"
+            
             if row_style == "green":
-                status_text = Text(dot, style=theme["healthy"])
+                dot_color = theme["healthy"]
             elif row_style == "yellow":
-                status_text = Text(dot, style=theme["warning"])
+                dot_color = theme["warning"]
             else:
-                status_text = Text(dot, style=theme["error"])
+                dot_color = theme["error"]
 
-            title_text = Text(art.get("title", "Untitled"), style=text_style)
-            risk_text = Text(f"{risk}", style=theme["primary"] if row_style == "green" else (theme["warning"] if row_style == "yellow" else theme["error"]))
-            sentiment_text = Text(art.get("sentiment", "neutral").upper(), style=text_style)
-            importance_text = Text(f"{art.get('importance_score', 0)}", style=text_style)
+            # 1. Risk column shows: Dot + Score (e.g. 🔴  87)
+            risk_text = Text()
+            risk_text.append(f"{dot} ", style=dot_color)
+            risk_text.append(f"{risk:<3}", style=f"bold {dot_color}")
 
-            self.add_row(status_text, title_text, risk_text, sentiment_text, importance_text)
+            # 2. Sentiment column
+            sent_str = art.get("sentiment", "neutral").upper()
+            sent_style = theme["healthy"] if "POS" in sent_str else (theme["error"] if "NEG" in sent_str else "white")
+            sentiment_text = Text(sent_str, style=sent_style)
+
+            # 3. Confidence column
+            conf_text = Text(art.get("confidence", "medium").upper(), style=theme["primary"])
+
+            # 4. Impact category
+            title = art.get("title", "Untitled")
+            impact_category = self.classify_headline_impact(title)
+            impact_style = "bold yellow" if impact_category in ["SECURITY", "REGULATION", "EXCHANGE"] else "cyan"
+            impact_text = Text(impact_category, style=impact_style)
+
+            # 5. Title column
+            title_text = Text(title, style=text_style)
+
+            self.add_row(risk_text, sentiment_text, conf_text, impact_text, title_text)
 
     def auto_scroll_row(self):
         """Automatically scroll the highlighted row if user isn't interacting."""
