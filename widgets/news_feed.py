@@ -108,7 +108,7 @@ class NewsFeed(DataTable):
 
         current_row = self.cursor_row
         next_row = (current_row + 1) % self.row_count
-        self.cursor_row = next_row
+        self.move_cursor(row=next_row)
 
     def on_focus(self):
         # Pause auto scroll when focused

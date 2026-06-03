@@ -12,7 +12,7 @@ from textual.reactive import reactive
 from textual.screen import ModalScreen
 
 # Import configuration settings and themes
-from config.settings import REFRESH_RATES, OLLAMA_MODEL
+from config.settings import REFRESH_RATES, OLLAMA_MODEL, OLLAMA_REMOTE
 from config.themes import THEMES, THEME_NAMES
 from services.db_service import DBService
 from services.log_service import LogService
@@ -38,6 +38,60 @@ from widgets.risk_trend_panel import RiskTrendPanel
 from widgets.confirmation_dialog import ConfirmationDialog
 from widgets.runbook_panel import RunbookPanel
 from widgets.autopilot_panel import AutopilotPanel
+
+import logging
+logger = logging.getLogger("dashboard")
+
+def safe_widget(widget, app_ref):
+    """
+    Wraps a widget's key lifecycle and render methods to catch exceptions,
+    automatically activating Safe Mode on the app instead of crashing.
+    """
+    original_on_mount = getattr(widget, "on_mount", None)
+    original_compose = getattr(widget, "compose", None)
+    original_render = getattr(widget, "render", None)
+
+    def safe_on_mount(*args, **kwargs):
+        try:
+            if original_on_mount:
+                return original_on_mount(*args, **kwargs)
+        except Exception as e:
+            logger.error(f"SafeMode: Widget {widget.__class__.__name__} crashed during on_mount: {e}")
+            app_ref.activate_startup_safe_mode(f"{widget.__class__.__name__} mount crash: {e}")
+            try:
+                widget.display = False
+            except Exception:
+                pass
+
+    def safe_compose(*args, **kwargs):
+        try:
+            if original_compose:
+                return original_compose(*args, **kwargs)
+        except Exception as e:
+            logger.error(f"SafeMode: Widget {widget.__class__.__name__} crashed during compose: {e}")
+            app_ref.activate_startup_safe_mode(f"{widget.__class__.__name__} compose crash: {e}")
+            return []
+
+    def safe_render(*args, **kwargs):
+        try:
+            if original_render:
+                return original_render(*args, **kwargs)
+        except Exception as e:
+            logger.error(f"SafeMode: Widget {widget.__class__.__name__} crashed during render: {e}")
+            app_ref.activate_startup_safe_mode(f"{widget.__class__.__name__} render crash: {e}")
+            from rich.text import Text
+            return Text(f"[{widget.__class__.__name__} CRASHED]", style="bold red")
+
+    if original_on_mount:
+        widget.on_mount = safe_on_mount
+    else:
+        widget.on_mount = safe_on_mount
+    if original_compose:
+        widget.compose = safe_compose
+    if original_render:
+        widget.render = safe_render
+
+    return widget
 
 class P3NocApp(App):
     """
@@ -388,30 +442,43 @@ class P3NocApp(App):
         # Audit states
         self.last_audit_date = None
         self.latest_report_path = None
+        self.startup_safe_mode_active = False
+
+    def safe_instantiate(self, widget_class, *args, **kwargs):
+        """Safely instantiates a widget. If instantiation fails, returns a fallback Static widget."""
+        try:
+            widget = widget_class(*args, **kwargs)
+            return safe_widget(widget, self)
+        except Exception as e:
+            logger.error(f"SafeMode: Failed to instantiate {widget_class.__name__}: {e}")
+            self.activate_startup_safe_mode(f"{widget_class.__name__} instantiation crash: {e}")
+            fallback = Static(f"[bold red]SAFE MODE: {widget_class.__name__} Failed[/]")
+            fallback.id = f"{widget_class.__name__.lower()}-fallback"
+            return fallback
 
     def compose(self) -> ComposeResult:
         """Compose layout grid."""
-        yield HeaderWidget()
+        yield self.safe_instantiate(HeaderWidget)
         
         with Container(id="grid-middle"):
             with Container(id="left-col"):
-                yield SystemPanel()
-                yield ThroughputPanel()
-                yield SysMetricsPanel()
+                yield self.safe_instantiate(SystemPanel)
+                yield self.safe_instantiate(ThroughputPanel)
+                yield self.safe_instantiate(SysMetricsPanel)
             
             with Container(id="middle-col"):
-                yield RiskRadar()
-                yield RiskTrendPanel()
-                yield RunbookPanel()
+                yield self.safe_instantiate(RiskRadar)
+                yield self.safe_instantiate(RiskTrendPanel)
+                yield self.safe_instantiate(RunbookPanel)
             
             with Container(id="right-col"):
-                yield OllamaPanel()
-                yield AlertPanel()
-                yield AutopilotPanel()
+                yield self.safe_instantiate(OllamaPanel)
+                yield self.safe_instantiate(AlertPanel)
+                yield self.safe_instantiate(AutopilotPanel)
                 
-        yield NewsFeed()
-        yield LogPanel()
-        yield TickerWidget()
+        yield self.safe_instantiate(NewsFeed)
+        yield self.safe_instantiate(LogPanel)
+        yield self.safe_instantiate(TickerWidget)
         yield Footer()
 
     def on_mount(self):
@@ -438,28 +505,98 @@ class P3NocApp(App):
         self.run_btc_ticker_update()
         self.run_autopilot_cycle()
 
+    def activate_startup_safe_mode(self, reason: str):
+        """Activates Safe Mode fallback on the dashboard."""
+        if self.startup_safe_mode_active:
+            return
+        self.startup_safe_mode_active = True
+        logger.warning(f"Safe Mode activated due to: {reason}")
+        
+        # 1. Update overall status on self and widgets
+        try:
+            self.query_one(HeaderWidget).status_str = "SAFE MODE ACTIVE"
+        except Exception:
+            pass
+
+        # 2. Hide/disable non-minimal widgets
+        non_minimal_classes = [
+            RiskRadar,
+            RiskTrendPanel,
+            RunbookPanel,
+            AlertPanel,
+            AutopilotPanel,
+            NewsFeed
+        ]
+        for w_class in non_minimal_classes:
+            try:
+                self.query_one(w_class).display = False
+            except Exception:
+                pass
+        
+        try:
+            self.query_one(NewsFeed).auto_scroll_active = False
+        except Exception:
+            pass
+        
+        # 3. Disable autopilot cycle and recovery checks
+        try:
+            self.autopilot_service.locked = True
+        except Exception:
+            pass
+
+        # Notify user
+        self.notify("SAFE MODE ACTIVE", severity="error")
+
+    def check_safe_mode_action(self) -> bool:
+        """Returns True if the action should be blocked because of active Safe Mode."""
+        if self.startup_safe_mode_active:
+            self.notify("ACTION BLOCKED: SAFE MODE ACTIVE", severity="warning")
+            return True
+        return False
+
     def run_startup_validation(self):
         """Validate PostgreSQL, services, and feed health on startup."""
         self.startup_errors = []
         
-        if not self.db_service.check_db_health():
-            self.startup_errors.append("PostgreSQL Connection Failed")
+        try:
+            if not self.db_service.check_db_health():
+                self.startup_errors.append("PostgreSQL Connection Failed")
+        except Exception as e:
+            self.startup_errors.append(f"PostgreSQL Check Failed: {e}")
             
-        if self.ollama_service.check_ollama_status() != "ONLINE":
-            self.startup_errors.append("Ollama Endpoint Unreachable")
+        try:
+            if self.ollama_service.check_ollama_status() != "ONLINE":
+                if OLLAMA_REMOTE:
+                    self.startup_errors.append("Remote Ollama Endpoint Unreachable")
+                else:
+                    self.startup_errors.append("Ollama Endpoint Unreachable")
+        except Exception as e:
+            self.startup_errors.append(f"Ollama Check Failed: {e}")
             
-        if not self.feed_service.check_worker_service_status():
-            self.startup_errors.append("Worker service Inactive")
+        try:
+            if not self.feed_service.check_worker_service_status():
+                self.startup_errors.append("Worker service Inactive")
+        except Exception as e:
+            self.startup_errors.append(f"Worker Check Failed: {e}")
             
-        if not self.feed_service.check_ingest_service_status():
-            self.startup_errors.append("Ingest service Inactive")
+        try:
+            if not self.feed_service.check_ingest_service_status():
+                self.startup_errors.append("Ingest Timer Inactive")
+        except Exception as e:
+            self.startup_errors.append(f"Ingest Timer Check Failed: {e}")
 
-        if not self.db_service.get_rss_feed_health():
-            self.startup_errors.append("RSS Feed Polling Failed")
+        try:
+            if not self.db_service.get_rss_feed_health():
+                self.startup_errors.append("RSS Feed Polling Failed")
+        except Exception as e:
+            self.startup_errors.append(f"RSS Feed Check Failed: {e}")
 
         # Push to alert panel
-        alerts = self.query_one(AlertPanel)
-        alerts.startup_failures = self.startup_errors
+        try:
+            alerts = self.query_one(AlertPanel)
+            alerts.startup_failures = self.startup_errors
+        except Exception:
+            pass
 
     # --- Background Workers & Data Fetching Jobs ---
 
@@ -491,37 +628,55 @@ class P3NocApp(App):
         self.ollama_online = ollama_stats["status"] == "ONLINE"
 
         # Update Header
-        header = self.query_one(HeaderWidget)
-        header.worker_status = worker
-        header.ingest_status = ingest
-        header.db_status = db
-        header.ollama_status = self.ollama_online
+        try:
+            header = self.query_one(HeaderWidget)
+            header.worker_status = worker
+            header.ingest_status = ingest
+            header.db_status = db
+            header.ollama_status = self.ollama_online
+            if self.startup_safe_mode_active:
+                header.status_str = "SAFE MODE ACTIVE"
+        except Exception:
+            pass
 
         # Update Ollama panel
-        ollama_panel = self.query_one(OllamaPanel)
-        ollama_panel.status_str = ollama_stats["status"]
-        ollama_panel.model_name = ollama_stats["model"]
-        ollama_panel.server_host = ollama_stats["server"]
-        ollama_panel.latency_sec = float(ollama_stats["latency"].replace("s", "")) if ollama_stats["latency"] != "N/A" else 0.0
-        ollama_panel.failures_count = ollama_stats["failures"]
-        ollama_panel.requests_count = ollama_stats["requests"]
-        self.ollama_model = ollama_stats["model"]
+        try:
+            ollama_panel = self.query_one(OllamaPanel)
+            ollama_panel.status_str = ollama_stats["status"]
+            ollama_panel.model_name = ollama_stats["model"]
+            ollama_panel.server_host = ollama_stats["server"]
+            ollama_panel.latency_sec = float(ollama_stats["latency"].replace("s", "")) if ollama_stats["latency"] != "N/A" else 0.0
+            ollama_panel.failures_count = ollama_stats["failures"]
+            ollama_panel.requests_count = ollama_stats["requests"]
+            self.ollama_model = ollama_stats["model"]
+        except Exception:
+            pass
 
         # Update Log panel
-        log_panel = self.query_one(LogPanel)
-        log_panel.update_logs(logs)
+        try:
+            log_panel = self.query_one(LogPanel)
+            log_panel.update_logs(logs)
+        except Exception:
+            pass
 
         # Update Alerts & Recommendations panel
-        alerts = self.query_one(AlertPanel)
-        alerts.ollama_online = self.ollama_online
-        alerts.db_online = db
-        alerts.worker_active = worker
-        alerts.ingest_active = ingest
-        alerts.ollama_failures = ollama_stats["failures"]
-        alerts.avg_time = ollama_panel.latency_sec
-        alerts.host_ram_percent = ram
-        alerts.env_ollama_model = OLLAMA_MODEL
-        alerts.active_ollama_model = ollama_stats["model"]
+        try:
+            alerts = self.query_one(AlertPanel)
+            alerts.ollama_online = self.ollama_online
+            alerts.db_online = db
+            alerts.worker_active = worker
+            alerts.ingest_active = ingest
+            alerts.ollama_failures = ollama_stats["failures"]
+            try:
+                lat = self.query_one(OllamaPanel).latency_sec
+            except Exception:
+                lat = float(ollama_stats["latency"].replace("s", "")) if ollama_stats["latency"] != "N/A" else 0.0
+            alerts.avg_time = lat
+            alerts.host_ram_percent = ram
+            alerts.env_ollama_model = OLLAMA_MODEL
+            alerts.active_ollama_model = ollama_stats["model"]
+        except Exception:
+            pass
 
     def run_db_metrics_update(self):
         self.run_worker(self._fetch_db_metrics_job, thread=True)
@@ -544,69 +699,103 @@ class P3NocApp(App):
 
     def _update_db_metrics_ui(self, queue_counts, throughput, processed_today, risk_history, latest_articles, latest_analysis):
         # Update System counts
-        system_panel = self.query_one(SystemPanel)
-        system_panel.pending_count = queue_counts["pending"]
-        system_panel.processing_count = queue_counts["processing"]
-        system_panel.completed_count = queue_counts["completed"]
-        system_panel.failed_count = queue_counts["failed"]
+        try:
+            system_panel = self.query_one(SystemPanel)
+            system_panel.pending_count = queue_counts["pending"]
+            system_panel.processing_count = queue_counts["processing"]
+            system_panel.completed_count = queue_counts["completed"]
+            system_panel.failed_count = queue_counts["failed"]
+        except Exception:
+            pass
 
         # Update Throughput
-        tp_panel = self.query_one(ThroughputPanel)
-        tp_panel.processed_last_hour = throughput["processed_last_hour"]
-        tp_panel.processed_today = processed_today
-        tp_panel.avg_time = throughput["avg_time"]
-        tp_panel.remaining = throughput["remaining"]
-        tp_panel.eta_str = throughput["eta_str"]
-        
-        total = queue_counts["completed"] + queue_counts["failed"]
-        efficiency = (queue_counts["completed"] / max(total, 1)) * 100.0
-        tp_panel.worker_efficiency = efficiency
+        try:
+            tp_panel = self.query_one(ThroughputPanel)
+            tp_panel.processed_last_hour = throughput["processed_last_hour"]
+            tp_panel.processed_today = processed_today
+            tp_panel.avg_time = throughput["avg_time"]
+            tp_panel.remaining = throughput["remaining"]
+            tp_panel.eta_str = throughput["eta_str"]
+            
+            total = queue_counts["completed"] + queue_counts["failed"]
+            efficiency = (queue_counts["completed"] / max(total, 1)) * 100.0
+            tp_panel.worker_efficiency = efficiency
+        except Exception:
+            efficiency = 100.0
 
         # Update Alerts
-        alerts = self.query_one(AlertPanel)
-        alerts.max_retry = throughput["max_retry"]
-        alerts.failed_queue_count = queue_counts["failed"]
-        alerts.worker_efficiency = efficiency
-        alerts.queue_processing_count = queue_counts["processing"]
+        try:
+            alerts = self.query_one(AlertPanel)
+            alerts.max_retry = throughput["max_retry"]
+            alerts.failed_queue_count = queue_counts["failed"]
+            alerts.worker_efficiency = efficiency
+            alerts.queue_processing_count = queue_counts["processing"]
+        except Exception:
+            pass
 
         # Update header Giant NOC Status Banner variables
-        header = self.query_one(HeaderWidget)
-        header.worker_efficiency = efficiency
-        header.avg_time = throughput["avg_time"]
+        try:
+            header = self.query_one(HeaderWidget)
+            header.worker_efficiency = efficiency
+            header.avg_time = throughput["avg_time"]
+        except Exception:
+            pass
 
         # Update Risk Trend graph
-        trend_panel = self.query_one(RiskTrendPanel)
-        trend_panel.risk_history = risk_history
+        try:
+            trend_panel = self.query_one(RiskTrendPanel)
+            trend_panel.risk_history = risk_history
+        except Exception:
+            pass
 
         # Update news feed table
-        news = self.query_one(NewsFeed)
-        news.update_articles(latest_articles)
+        try:
+            news = self.query_one(NewsFeed)
+            news.update_articles(latest_articles)
+        except Exception:
+            pass
 
         # Update Risk Radar
-        risk_radar = self.query_one(RiskRadar)
-        if latest_analysis:
-            risk_radar.risk_score = latest_analysis.get("importance_score", 0)
-            risk_radar.sentiment_str = latest_analysis.get("sentiment", "Neutral")
-            risk_radar.sentiment_score = latest_analysis.get("sentiment_score", 0.0)
-            risk_radar.importance_score = latest_analysis.get("importance_score", 0)
-            risk_radar.confidence_str = latest_analysis.get("confidence", "medium")
-            
-            alerts.latest_risk_score = latest_analysis.get("importance_score", 0)
-            
-            # Feed header summary banner
-            header.risk_score = latest_analysis.get("importance_score", 0)
-            header.queue_remaining = throughput["remaining"]
-            header.eta_str = throughput["eta_str"]
-            header.top_event_str = latest_analysis.get("title", "No headlines yet.")
+        try:
+            risk_radar = self.query_one(RiskRadar)
+            if latest_analysis:
+                risk_radar.risk_score = latest_analysis.get("importance_score", 0)
+                risk_radar.sentiment_str = latest_analysis.get("sentiment", "Neutral")
+                risk_radar.sentiment_score = latest_analysis.get("sentiment_score", 0.0)
+                risk_radar.importance_score = latest_analysis.get("importance_score", 0)
+                risk_radar.confidence_str = latest_analysis.get("confidence", "medium")
+                
+                try:
+                    self.query_one(AlertPanel).latest_risk_score = latest_analysis.get("importance_score", 0)
+                except Exception:
+                    pass
+                
+                # Feed header summary banner
+                try:
+                    h = self.query_one(HeaderWidget)
+                    h.risk_score = latest_analysis.get("importance_score", 0)
+                    h.queue_remaining = throughput["remaining"]
+                    h.eta_str = throughput["eta_str"]
+                    h.top_event_str = latest_analysis.get("title", "No headlines yet.")
+                except Exception:
+                    pass
 
-            ticker = self.query_one(TickerWidget)
-            ticker.latest_title = latest_analysis.get("title", "No headlines yet.")
+                try:
+                    t = self.query_one(TickerWidget)
+                    t.latest_title = latest_analysis.get("title", "No headlines yet.")
+                except Exception:
+                    pass
+        except Exception:
+            pass
 
         # Update ticker stats
-        ticker = self.query_one(TickerWidget)
-        ticker.queue_remaining = throughput["remaining"]
-        ticker.eta_str = throughput["eta_str"]
-        ticker.ollama_status = "ONLINE" if self.ollama_online else "OFFLINE"
+        try:
+            ticker = self.query_one(TickerWidget)
+            ticker.queue_remaining = throughput["remaining"]
+            ticker.eta_str = throughput["eta_str"]
+            ticker.ollama_status = "ONLINE" if self.ollama_online else "OFFLINE"
+        except Exception:
+            pass
 
     def run_btc_ticker_update(self):
         self.run_worker(self._fetch_btc_ticker_job, thread=True)
@@ -619,15 +808,21 @@ class P3NocApp(App):
             pass
 
     def _update_btc_ticker_ui(self, btc_data):
-        header = self.query_one(HeaderWidget)
-        header.btc_price_str = btc_data["price_str"]
-        header.btc_change_str = btc_data["change_str"]
-        header.btc_positive = btc_data["is_positive"]
+        try:
+            header = self.query_one(HeaderWidget)
+            header.btc_price_str = btc_data["price_str"]
+            header.btc_change_str = btc_data["change_str"]
+            header.btc_positive = btc_data["is_positive"]
+        except Exception:
+            pass
 
-        ticker = self.query_one(TickerWidget)
-        ticker.btc_price_str = btc_data["price_str"]
-        ticker.btc_change_str = btc_data["change_str"]
-        ticker.btc_positive = btc_data["is_positive"]
+        try:
+            ticker = self.query_one(TickerWidget)
+            ticker.btc_price_str = btc_data["price_str"]
+            ticker.btc_change_str = btc_data["change_str"]
+            ticker.btc_positive = btc_data["is_positive"]
+        except Exception:
+            pass
 
     # --- Actions / Keyboard Bindings handlers ---
 
@@ -642,6 +837,8 @@ class P3NocApp(App):
 
     def action_next_theme(self):
         """F2: Cycle theme."""
+        if self.check_safe_mode_action():
+            return
         self.theme_index = (self.theme_index + 1) % len(THEMES)
         new_theme = THEMES[self.theme_index]
         
@@ -653,40 +850,49 @@ class P3NocApp(App):
             self.add_class("wallboard-mode")
         
         # Push reactive theme update to all widgets
-        self.query_one(HeaderWidget).current_theme = new_theme
-        self.query_one(SystemPanel).current_theme = new_theme
-        self.query_one(ThroughputPanel).current_theme = new_theme
-        self.query_one(SysMetricsPanel).current_theme = new_theme
-        self.query_one(OllamaPanel).current_theme = new_theme
-        self.query_one(AlertPanel).current_theme = new_theme
-        self.query_one(RiskRadar).current_theme = new_theme
-        self.query_one(RiskTrendPanel).current_theme = new_theme
-        self.query_one(RunbookPanel).current_theme = new_theme
-        self.query_one(NewsFeed).current_theme = new_theme
-        self.query_one(LogPanel).current_theme = new_theme
-        self.query_one(TickerWidget).current_theme = new_theme
-        self.query_one(AutopilotPanel).current_theme = new_theme
+        try:
+            self.query_one(HeaderWidget).current_theme = new_theme
+            self.query_one(SystemPanel).current_theme = new_theme
+            self.query_one(ThroughputPanel).current_theme = new_theme
+            self.query_one(SysMetricsPanel).current_theme = new_theme
+            self.query_one(OllamaPanel).current_theme = new_theme
+            self.query_one(AlertPanel).current_theme = new_theme
+            self.query_one(RiskRadar).current_theme = new_theme
+            self.query_one(RiskTrendPanel).current_theme = new_theme
+            self.query_one(RunbookPanel).current_theme = new_theme
+            self.query_one(NewsFeed).current_theme = new_theme
+            self.query_one(LogPanel).current_theme = new_theme
+            self.query_one(TickerWidget).current_theme = new_theme
+            self.query_one(AutopilotPanel).current_theme = new_theme
+        except Exception:
+            pass
         
         self.notify(f"Theme switched to: {THEME_NAMES[new_theme]}")
 
     def action_toggle_compact(self):
-        header = self.query_one(HeaderWidget)
-        header.compact_mode = not header.compact_mode
+        try:
+            header = self.query_one(HeaderWidget)
+            header.compact_mode = not header.compact_mode
+        except Exception:
+            pass
 
     def action_toggle_fullscreen_logs(self):
         self.logs_fullscreen = not self.logs_fullscreen
-        grid_mid = self.query_one("#grid-middle")
-        news = self.query_one(NewsFeed)
-        header = self.query_one(HeaderWidget)
-        
-        if self.logs_fullscreen:
-            grid_mid.display = False
-            news.display = False
-            header.display = False
-        else:
-            grid_mid.display = True
-            news.display = True
-            header.display = True
+        try:
+            grid_mid = self.query_one("#grid-middle")
+            grid_mid.display = not self.logs_fullscreen
+        except Exception:
+            pass
+        try:
+            news = self.query_one(NewsFeed)
+            news.display = not self.logs_fullscreen
+        except Exception:
+            pass
+        try:
+            header = self.query_one(HeaderWidget)
+            header.display = not self.logs_fullscreen
+        except Exception:
+            pass
 
     def action_refresh_data(self):
         """F5: Manual refresh."""
@@ -699,6 +905,8 @@ class P3NocApp(App):
 
     def action_restart_worker(self):
         """F6: Restart Worker service."""
+        if self.check_safe_mode_action():
+            return
         def check_result(confirm: bool) -> None:
             if confirm:
                 res = self.recovery_service.restart_worker()
@@ -714,6 +922,8 @@ class P3NocApp(App):
 
     def action_restart_ingest(self):
         """F7: Restart RSS Ingest timer."""
+        if self.check_safe_mode_action():
+            return
         def check_result(confirm: bool) -> None:
             if confirm:
                 res = self.recovery_service.restart_ingest()
@@ -729,6 +939,8 @@ class P3NocApp(App):
 
     def action_requeue_failed(self):
         """F8: Requeue Failed Queue Jobs."""
+        if self.check_safe_mode_action():
+            return
         def check_result(confirm: bool) -> None:
             if confirm:
                 res = self.recovery_service.requeue_failed()
@@ -745,6 +957,8 @@ class P3NocApp(App):
 
     def action_clear_stuck(self):
         """F9: Clear Stuck Processing (>15m)."""
+        if self.check_safe_mode_action():
+            return
         def check_result(confirm: bool) -> None:
             if confirm:
                 res = self.recovery_service.clear_stuck_processing()
@@ -761,6 +975,8 @@ class P3NocApp(App):
 
     def action_restart_ollama(self):
         """F10: Restart Ollama service."""
+        if self.check_safe_mode_action():
+            return
         def check_result(confirm: bool) -> None:
             if confirm:
                 # Runs restart in background since ping tags checking takes a few seconds
@@ -781,6 +997,8 @@ class P3NocApp(App):
 
     def action_warm_model(self):
         """F11: Warm Model Cache."""
+        if self.check_safe_mode_action():
+            return
         self.notify(f"Pre-loading cache for model: {self.ollama_model}...")
         self.run_worker(self._warm_model_job, thread=True)
 
@@ -793,6 +1011,8 @@ class P3NocApp(App):
 
     def action_health_recovery(self):
         """F12: Full Health Recovery."""
+        if self.check_safe_mode_action():
+            return
         def check_result(confirm: bool) -> None:
             if confirm:
                 self.notify("Executing Full operational Health Recovery Runbook...")
@@ -845,6 +1065,8 @@ class P3NocApp(App):
     # --- Autopilot Service Background Workers ---
 
     def run_autopilot_cycle(self):
+        if self.startup_safe_mode_active:
+            return
         self.run_worker(self._autopilot_cycle_job, thread=True)
 
     def _autopilot_cycle_job(self):
@@ -904,15 +1126,24 @@ class P3NocApp(App):
             ap_panel.uptime_days = self.autopilot_service.get_uptime_days()
             ap_panel.actions_today = self.autopilot_service.total_recoveries_today
             ap_panel.last_actions_list = last_actions
+        except Exception:
+            pass
             
-            # Update Alert panel values
+        # Update Alert panel values
+        try:
             alerts = self.query_one(AlertPanel)
             alerts.autopilot_locked = self.autopilot_service.locked
             alerts.predictive_alerts = self.autopilot_service.predictive_alerts
+        except Exception:
+            pass
             
-            # Update Header status_str
+        # Update Header status_str
+        try:
             header = self.query_one(HeaderWidget)
-            header.status_str = health_state.overall_status
+            if self.startup_safe_mode_active:
+                header.status_str = "SAFE MODE ACTIVE"
+            else:
+                header.status_str = health_state.overall_status
         except Exception as e:
             logger.error(f"Error updating autopilot UI: {e}")
 

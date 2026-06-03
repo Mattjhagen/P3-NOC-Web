@@ -49,7 +49,9 @@ class HeaderWidget(Widget):
 
         # Compute Giant NOC Status Banner based on Autopilot health status
         status_upper = self.status_str.upper()
-        if "INCIDENT" in status_upper:
+        if "SAFE" in status_upper:
+            status_banner = Text(" [SAFE MODE ACTIVE]        ", style="bold white on red reverse")
+        elif "INCIDENT" in status_upper:
             status_banner = Text(" [SYSTEM STATUS: 🔴 INCIDENT] ", style="bold white on red")
         elif "DEGRADED" in status_upper:
             status_banner = Text(" [SYSTEM STATUS: 🟡 DEGRADED] ", style="bold black on yellow")

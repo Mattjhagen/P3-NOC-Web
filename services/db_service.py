@@ -176,7 +176,7 @@ class DBService:
                     cur.execute("SELECT AVG(response_time_ms) FROM analysis_versions;")
                     avg_ms = cur.fetchone()[0]
                 
-                stats['avg_time'] = (avg_ms / 1000.0) if avg_ms is not None else 224.0 # Fallback default 224s
+                stats['avg_time'] = (float(avg_ms) / 1000.0) if avg_ms is not None else 224.0 # Fallback default 224s
 
                 # 3. Queue remaining
                 cur.execute("""
@@ -406,7 +406,7 @@ class DBService:
                 # Average latency in the last 7 days
                 cur.execute("SELECT AVG(response_time_ms) FROM analysis_versions WHERE created_at >= NOW() - INTERVAL '7 days';")
                 avg_ms = cur.fetchone()[0]
-                metrics["avg_latency"] = (avg_ms / 1000.0) if avg_ms is not None else 58.2
+                metrics["avg_latency"] = (float(avg_ms) / 1000.0) if avg_ms is not None else 58.2
         except Exception as e:
             logger.error(f"Failed to fetch weekly audit metrics: {e}")
         finally:

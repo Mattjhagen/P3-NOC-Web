@@ -3,6 +3,8 @@ from textual.reactive import reactive
 from rich.text import Text
 from config.themes import THEME_COLORS
 
+from config.settings import OLLAMA_REMOTE
+
 class RunbookPanel(Static):
     """
     Operator Runbook Action panel.
@@ -31,7 +33,10 @@ class RunbookPanel(Static):
         add_action("F7", "Restart RSS Ingest Timer")
         add_action("F8", "Requeue Failed Queue Jobs")
         add_action("F9", "Clear Stuck Processing (>15m)")
-        add_action("F10", "Restart Ollama Inference")
+        if OLLAMA_REMOTE:
+            add_action("F10", "Restart Ollama [DISABLED - REMOTE]")
+        else:
+            add_action("F10", "Restart Ollama Inference")
         add_action("F11", "Warm LLM Model Cache")
         add_action("F12", "Execute Full Health Recovery")
 

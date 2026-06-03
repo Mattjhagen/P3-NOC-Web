@@ -30,5 +30,6 @@ class FeedService:
         return self._is_systemd_service_active(self.worker_name)
 
     def check_ingest_service_status(self) -> bool:
-        """Returns True if the RSS ingest service is running."""
-        return self._is_systemd_service_active(self.ingest_name)
+        """Returns True if the RSS ingest timer is active."""
+        timer_name = self.ingest_name if self.ingest_name.endswith(".timer") else f"{self.ingest_name}.timer"
+        return self._is_systemd_service_active(timer_name)

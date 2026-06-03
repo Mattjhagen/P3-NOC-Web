@@ -2,6 +2,7 @@ from textual.widgets import Static
 from textual.reactive import reactive
 from rich.text import Text
 from config.themes import THEME_COLORS
+from config.settings import OLLAMA_REMOTE
 
 class AlertPanel(Static):
     """
@@ -79,9 +80,15 @@ class AlertPanel(Static):
 
         # 3. Ollama Offline / Timeouts
         if not self.ollama_online:
-            content.append(" 🔴 Ollama Server Offline\n", style="bold red")
+            if OLLAMA_REMOTE:
+                content.append(" 🔴 REMOTE OLLAMA OFFLINE\n", style="bold red reverse")
+            else:
+                content.append(" 🔴 Ollama Server Offline\n", style="bold red")
         elif self.ollama_failures >= 3:
-            content.append(f" 🔴 Ollama Timeout Spike ({self.ollama_failures} fails)\n", style="bold red")
+            if OLLAMA_REMOTE:
+                content.append(f" 🔴 REMOTE OLLAMA OFFLINE ({self.ollama_failures} fails)\n", style="bold red reverse")
+            else:
+                content.append(f" 🔴 Ollama Timeout Spike ({self.ollama_failures} fails)\n", style="bold red")
 
         # 4. Queue Failure Rate Rising
         if self.worker_efficiency < 85.0:
@@ -121,11 +128,17 @@ class AlertPanel(Static):
             
         # Rule 1: Ollama Offline
         if not self.ollama_online:
-            recommendations.append(("🔴 Ollama Offline", "Run F10 Restart Ollama"))
+            if OLLAMA_REMOTE:
+                recommendations.append(("🔴 Remote Ollama Offline", "Check R510 Remote Host status"))
+            else:
+                recommendations.append(("🔴 Ollama Offline", "Run F10 Restart Ollama"))
         
         # Rule 2: Memory Pressure
         if self.host_ram_percent > 90.0:
-            recommendations.append(("🔴 Memory Pressure (>90% RAM)", "Run F10 Restart Ollama"))
+            if OLLAMA_REMOTE:
+                recommendations.append(("🔴 Memory Pressure (>90% RAM)", "Check host services"))
+            else:
+                recommendations.append(("🔴 Memory Pressure (>90% RAM)", "Run F10 Restart Ollama"))
 
         # Rule 3: Worker Offline
         if not self.worker_active:

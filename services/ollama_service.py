@@ -17,7 +17,7 @@ class OllamaService:
         """Pings the Ollama endpoint and returns 'ONLINE' or 'OFFLINE'."""
         try:
             # Ping the base endpoint or list tags endpoint
-            response = requests.get(self.url, timeout=1.5)
+            response = requests.get(f"{self.url}/api/tags", timeout=1.5)
             if response.status_code == 200:
                 self.local_failure_counter = 0
                 return "ONLINE"

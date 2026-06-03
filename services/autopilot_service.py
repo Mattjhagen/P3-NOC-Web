@@ -6,6 +6,7 @@ from services.recovery_service import RecoveryService
 from services.feed_service import FeedService
 from services.ollama_service import OllamaService
 from services.routing_service import RoutingService
+from config.settings import OLLAMA_REMOTE
 
 logger = logging.getLogger("dashboard")
 
@@ -198,17 +199,21 @@ class AutopilotService:
         # --- Self-Healing Rules Engine ---
         # Rule 1: Ollama Offline / Timeout Spike
         if ollama_fails >= 3 or not ollama_ok:
-            issues.append("Ollama Failure Detected")
-            if self.record_recovery_attempt():
-                logger.warning("Autopilot: Restarting Ollama...")
-                self.db_service.log_operations_event("CRITICAL", "OLLAMA_TIMEOUT_DETECTED", "RESTART_OLLAMA", "PENDING")
-                res = self.recovery_service.restart_ollama()
-                result_str = "SUCCESS" if res else "FAILED"
-                self.db_service.log_operations_event("INFO", "OLLAMA_RESTART_COMPLETED", "RESTART_OLLAMA", result_str)
-                if res:
-                    self.recovery_service.warm_model(self.routing_service.model_fast)
-                    self.db_service.log_operations_event("INFO", "MODEL_WARMED", "WARM_MODEL", "SUCCESS")
-                actions.append("Restart Ollama")
+            if OLLAMA_REMOTE:
+                issues.append("REMOTE OLLAMA OFFLINE")
+                # Do not attempt local restart
+            else:
+                issues.append("Ollama Failure Detected")
+                if self.record_recovery_attempt():
+                    logger.warning("Autopilot: Restarting Ollama...")
+                    self.db_service.log_operations_event("CRITICAL", "OLLAMA_TIMEOUT_DETECTED", "RESTART_OLLAMA", "PENDING")
+                    res = self.recovery_service.restart_ollama()
+                    result_str = "SUCCESS" if res else "FAILED"
+                    self.db_service.log_operations_event("INFO", "OLLAMA_RESTART_COMPLETED", "RESTART_OLLAMA", result_str)
+                    if res:
+                        self.recovery_service.warm_model(self.routing_service.model_fast)
+                        self.db_service.log_operations_event("INFO", "MODEL_WARMED", "WARM_MODEL", "SUCCESS")
+                    actions.append("Restart Ollama")
         
         # Rule 2: Queue Jam
         if processing_count > 5 and oldest_age > 15:

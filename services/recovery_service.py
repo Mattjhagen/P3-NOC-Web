@@ -3,7 +3,7 @@ import subprocess
 import requests
 import psycopg2
 import logging
-from config.settings import OLLAMA_URL, DATABASE_URL, SERVICE_WORKER, SERVICE_INGEST
+from config.settings import OLLAMA_URL, DATABASE_URL, SERVICE_WORKER, SERVICE_INGEST, OLLAMA_REMOTE
 
 logger = logging.getLogger("dashboard")
 
@@ -29,21 +29,25 @@ class RecoveryService:
 
     def restart_ingest(self) -> bool:
         """Restart systemd RSS ingest timer. Simulates on non-Linux."""
+        timer_name = SERVICE_INGEST if SERVICE_INGEST.endswith(".timer") else f"{SERVICE_INGEST}.timer"
         if sys.platform.startswith("linux"):
             try:
                 # User specified restarting the timer unit
-                subprocess.run(["sudo", "systemctl", "restart", f"{SERVICE_INGEST}.timer"], check=True)
-                logger.info("systemctl: restarted bitcoin-ingest.timer")
+                subprocess.run(["sudo", "systemctl", "restart", timer_name], check=True)
+                logger.info(f"systemctl: restarted {timer_name}")
                 return True
             except Exception as e:
                 logger.error(f"Failed to restart RSS ingest timer: {e}")
                 return False
         else:
-            logger.info("SIMULATION: restarted bitcoin-ingest.timer")
+            logger.info(f"SIMULATION: restarted {timer_name}")
             return True
 
     def restart_ollama(self) -> bool:
         """Restart systemd ollama service and verify endpoint. Simulates on non-Linux."""
+        if OLLAMA_REMOTE:
+            logger.warning("Recovery: Cannot restart Ollama because it is remote.")
+            return False
         if sys.platform.startswith("linux"):
             try:
                 subprocess.run(["sudo", "systemctl", "restart", "ollama"], check=True)
@@ -169,8 +173,11 @@ class RecoveryService:
         
         # 3. Restart Ollama if unreachable
         if not ollama_ok:
-            logger.warning("Recovery: Ollama unreachable. Restarting Ollama...")
-            ollama_ok = self.restart_ollama()
+            if OLLAMA_REMOTE:
+                logger.warning("Recovery: Remote Ollama is offline. Skipping systemctl restart.")
+            else:
+                logger.warning("Recovery: Ollama unreachable. Restarting Ollama...")
+                ollama_ok = self.restart_ollama()
         steps.append(("Ollama", ollama_ok))
 
         # 4. Restart bitcoin-worker
