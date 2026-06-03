@@ -56,7 +56,7 @@ class RiskRadar(Static):
         
         for line in dial_lines:
             content.append("    ") # left padding
-            content.append_markup(f"[{dial_color}]{line}[/{dial_color}]\n")
+            content.append(Text.from_markup(f"[{dial_color}]{line}[/{dial_color}]\n"))
             
         content.append("\n")
         
