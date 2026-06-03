@@ -127,7 +127,10 @@ class HeaderWidget(Widget):
         status_line_right = Text(f"🕒 {time_str}", style=muted_color)
         
         # Merge banner and clock
-        full_width = self.app.size.width if self.app else 80
+        try:
+            full_width = self.app.size.width
+        except Exception:
+            full_width = 80
         content_len = len(banner.plain) + len(status_line_right.plain)
         padding_spaces = max(1, full_width - content_len - 6)
         

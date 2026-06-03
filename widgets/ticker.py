@@ -41,7 +41,10 @@ class TickerWidget(Static):
         if not self.ticker_text:
             return
 
-        full_width = self.app.size.width if self.app else 80
+        try:
+            full_width = self.app.size.width
+        except Exception:
+            full_width = 80
         text_with_gap = self.ticker_text + "   ||   "
         
         # Calculate offset
