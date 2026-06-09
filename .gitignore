@@ -1,8 +1,20 @@
+# Python
 .venv/
 __pycache__/
 *.pyc
+*.pyo
 .env
 logs/
 .DS_Store
 *.sqlite
 *.db
+
+# Node / Frontend
+node_modules/
+dist/
+.vite/
+*.local
+
+# Build artifacts
+frontend/dist/
+frontend/node_modules/
