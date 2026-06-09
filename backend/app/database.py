@@ -45,6 +45,8 @@ class ChatMessage(Base):
     conversation_id = Column(Integer, ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False)
     role = Column(String(10), nullable=False)  # 'user', 'assistant'
     content = Column(Text, nullable=False)
+    sources = Column(Text, nullable=True)       # JSON string of reference sources
+    suggestions = Column(Text, nullable=True)   # JSON string of suggested follow-up questions
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     
     conversation = relationship("Conversation", back_populates="messages")

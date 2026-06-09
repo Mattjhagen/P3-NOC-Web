@@ -7,26 +7,25 @@ export default {
   theme: {
     extend: {
       colors: {
-        // High fidelity NOC theme
-        dashboard: {
-          bg: "#0B0C10",        // Deep outer space charcoal
-          card: "#1F2833",      // Matte metal gray
-          accent: "#45A29E",    // Muted cyber blue/teal
-          neon: "#66FCF1",      // Vivid electric cyan
-          border: "#2C3539",    // Gunmetal border lines
-          healthy: "#10B981",   // Vibrant green
-          warning: "#F59E0B",   // Warning orange/amber
-          critical: "#EF4444",  // Emergency red
+        metro: {
+          accent: "#00b4d8",
+          bg: "#0f0f0f",
+          surface: "#1a1a1a",
+          muted: "rgba(255,255,255,0.35)",
         }
       },
       fontFamily: {
-        mono: ['Courier New', 'Courier', 'monospace'],
+        sans: ['Inter', 'Segoe UI', 'sans-serif'],
+        mono: ['Fira Code', 'Cascadia Code', 'Courier New', 'monospace'],
       },
-      boxShadow: {
-        'glow-neon': '0 0 15px rgba(102, 252, 241, 0.4)',
-        'glow-healthy': '0 0 15px rgba(16, 185, 129, 0.4)',
-        'glow-warning': '0 0 15px rgba(245, 158, 11, 0.4)',
-        'glow-critical': '0 0 15px rgba(239, 68, 68, 0.4)',
+      keyframes: {
+        spin: {
+          '0%': { transform: 'rotate(0deg)' },
+          '100%': { transform: 'rotate(360deg)' },
+        }
+      },
+      animation: {
+        spin: 'spin 0.7s linear infinite',
       }
     },
   },

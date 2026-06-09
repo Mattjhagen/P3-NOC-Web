@@ -568,7 +568,9 @@
 
             useEffect(() => {
                 if (availableModels.length > 0) {
-                    setSelectedModel(availableModels[0]);
+                    if (!selectedModel || !availableModels.includes(selectedModel)) {
+                        setSelectedModel(availableModels[0]);
+                    }
                 }
             }, [availableModels]);
 
@@ -660,7 +662,16 @@
                                 const dataStr = line.replace("data: ", "").trim();
                                 try {
                                     const parsed = JSON.parse(dataStr);
+                                    if (parsed.message?.thinking) {
+                                        if (!accum.includes("[THINKING]")) {
+                                            accum += "[THINKING]";
+                                        }
+                                        accum += parsed.message.thinking;
+                                    }
                                     if (parsed.message?.content) {
+                                        if (accum.includes("[THINKING]") && !accum.includes("[/THINKING]")) {
+                                            accum += "[/THINKING]\n\n";
+                                        }
                                         accum += parsed.message.content;
                                     }
                                     setMessages(prev => {
@@ -682,6 +693,33 @@
                     setIsStreaming(false);
                     fetchConversations();
                 }
+            };
+
+            const formatContent = (text) => {
+                if (!text) return "";
+                let html = text
+                    .replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;")
+                    .replace(/>/g, "&gt;");
+                    
+                if (html.includes("[THINKING]")) {
+                    if (html.includes("[/THINKING]")) {
+                        html = html.replace(/\[THINKING\]([\s\S]*?)\[\/THINKING\]/g, (_, thought) => {
+                            return `<div class="border-l-2 border-dashboard-accent/30 pl-2 py-0.5 my-1 text-[11px] text-dashboard-accent italic opacity-75">
+                                <div class="text-[9px] uppercase tracking-wider block opacity-70 mb-0.5 font-sans font-bold">Thinking Process:</div>
+                                <div>${thought.trim()}</div>
+                            </div>`;
+                        });
+                    } else {
+                        html = html.replace(/\[THINKING\]([\s\S]*)$/g, (_, thought) => {
+                            return `<div class="border-l-2 border-dashboard-accent/30 pl-2 py-0.5 my-1 text-[11px] text-dashboard-accent italic opacity-75 animate-pulse">
+                                <div class="text-[9px] uppercase tracking-wider block opacity-70 mb-0.5 font-sans font-bold">Thinking Process...</div>
+                                <div>${thought.trim()}</div>
+                            </div>`;
+                        });
+                    }
+                }
+                return <div dangerouslySetInnerHTML={{ __html: html }} />;
             };
 
             return (
@@ -717,7 +755,7 @@
                             {messages.map((m, idx) => (
                                 <div key={idx} className={`p-3 rounded-lg border max-w-[80%] ${m.role === 'user' ? 'bg-dashboard-accent/10 border-dashboard-accent/30 ml-auto text-right' : 'bg-dashboard-card border-dashboard-border mr-auto text-left'}`}>
                                     <span className="text-[10px] text-dashboard-accent block mb-1 uppercase font-bold">{m.role}</span>
-                                    <p className="whitespace-pre-wrap select-text">{m.content}</p>
+                                    <div className="whitespace-pre-wrap select-text">{formatContent(m.content)}</div>
                                 </div>
                             ))}
                             <div ref={chatEndRef} />

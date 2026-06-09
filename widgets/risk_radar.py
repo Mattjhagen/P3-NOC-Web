@@ -67,11 +67,12 @@ class RiskRadar(Static):
             content.append(f"{val_str}\n", style=val_style)
 
         # Sentiment mappings for display
-        sentiment_label = self.sentiment_str.capitalize()
-        sent_style = healthy if "pos" in self.sentiment_str.lower() else (error if "neg" in self.sentiment_str.lower() else "white")
+        sentiment_str_safe = str(self.sentiment_str)
+        sentiment_label = sentiment_str_safe.capitalize()
+        sent_style = healthy if "pos" in sentiment_str_safe.lower() else (error if "neg" in sentiment_str_safe.lower() else "white")
         
         add_detail("Sentiment:", f"{sentiment_label} ({self.sentiment_score:+.2f})", sent_style)
         add_detail("Importance:", f"{self.importance_score}/100", primary)
-        add_detail("Confidence:", self.confidence_str.upper(), primary)
+        add_detail("Confidence:", str(self.confidence_str).upper(), primary)
 
         return Align.center(content)

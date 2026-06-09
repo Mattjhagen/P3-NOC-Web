@@ -1,0 +1,32 @@
+
+name: P3NOC
+options:
+  bundleIdPrefix: xyz.mattyhagen
+targets:
+  P3NOC:
+    type: application
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources: [Sources]
+    info:
+      path: Sources/Info.plist
+      properties:
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+        NSFaceIDUsageDescription: "Biometric authentication is required to access the P3 NOC Security console."
+    settings:
+      base:
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+
+schemes:
+  P3NOC:
+    build:
+      targets:
+        P3NOC: all
+    run:
+      envVariables:
+        IDEPreferLogStreaming: "YES"
+

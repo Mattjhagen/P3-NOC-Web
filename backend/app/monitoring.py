@@ -228,10 +228,12 @@ class SystemMonitor:
         ssh_ok = self.verify_ssh()
         ollama_ok = self.verify_ollama()
         
+        host_online = ping_ok or ssh_ok or ollama_ok
+        
         # Base indicators
         telemetry = {
-            "online": ping_ok,
-            "ping_latency_ms": round(latency, 1),
+            "online": host_online,
+            "ping_latency_ms": round(latency, 1) if ping_ok else (5.0 if host_online else 0.0),
             "ssh_status": "ONLINE" if ssh_ok else "OFFLINE",
             "ollama_status": "ONLINE" if ollama_ok else "OFFLINE",
             "active_model": "None",
@@ -245,7 +247,7 @@ class SystemMonitor:
             "timestamp": datetime.utcnow().isoformat() + "Z"
         }
         
-        if ping_ok:
+        if host_online:
             # Query Ollama details
             ollama_stats = self.fetch_ollama_stats()
             telemetry.update(ollama_stats)

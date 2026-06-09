@@ -119,15 +119,23 @@ async def websocket_status_endpoint(websocket: WebSocket):
     await ws_manager.connect(websocket)
     try:
         while True:
-            # Keep connection open and check for client close
-            data = await websocket.receive_text()
-            # Handle user ping or input if sent
-            await websocket.send_json({"pong": True})
+            # Send a server-side ping every 20 seconds to keep the connection
+            # alive through proxies (Cloudflare closes idle WS after ~90s)
+            await asyncio.sleep(20)
+            try:
+                await websocket.send_json({"ping": True})
+            except Exception:
+                # Connection was closed - break out of the loop
+                break
     except WebSocketDisconnect:
-        ws_manager.disconnect(websocket)
+        pass
     except Exception as e:
         logger.error(f"WebSocket connection error: {e}")
-        ws_manager.disconnect(websocket)
+    finally:
+        try:
+            ws_manager.disconnect(websocket)
+        except Exception:
+            pass
 
 # --- Background Loops ---
 

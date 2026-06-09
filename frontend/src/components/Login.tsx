@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import { Server, Lock, User, Terminal } from "lucide-react";
 import axios from "axios";
 
 interface LoginProps {
@@ -18,152 +17,154 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     e.preventDefault();
     setErrorMsg("");
     setIsLoading(true);
-
     try {
       if (isRegister) {
-        // Register API endpoint
         await axios.post("/api/auth/register", { username, password, role });
-        // After registering, switch to login or auto-login.
-        // Let's auto-login!
       }
-
-      // Login form-data payload for OAuth2PasswordRequestForm
       const params = new URLSearchParams();
       params.append("username", username);
       params.append("password", password);
-
       const res = await axios.post("/api/auth/login", params, {
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
       });
-
       const { access_token, role: userRole } = res.data;
       onLoginSuccess(access_token, username, userRole);
     } catch (err: any) {
-      logger_error(err);
-      setErrorMsg(
-        err.response?.data?.detail || "Authentication request failed. Please check inputs."
-      );
+      setErrorMsg(err.response?.data?.detail || "Authentication failed.");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const logger_error = (e: any) => {
-    console.error("Auth error:", e);
-  };
-
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0B0C10] p-4 relative select-none">
-      {/* Background Matrix-like abstract overlay */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(69,162,158,0.07)_0%,transparent_70%)] pointer-events-none" />
+    <div style={{ minHeight: "100vh", background: "#0f0f0f", display: "flex" }}>
+      {/* Left accent panel */}
+      <div style={{
+        width: "8px",
+        background: "var(--metro-accent)",
+        flexShrink: 0,
+      }} />
 
-      <div className="w-full max-w-md glass-panel rounded-2xl border border-dashboard-border shadow-glow-neon p-8 relative overflow-hidden">
-        {/* Glowing top line */}
-        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-dashboard-accent via-dashboard-neon to-dashboard-accent" />
+      {/* Main content */}
+      <div style={{ flex: 1, display: "flex", alignItems: "center", padding: "4rem 6vw" }}>
+        <div style={{ maxWidth: "400px", width: "100%" }}>
 
-        {/* Center Logo */}
-        <div className="text-center mb-8">
-          <div className="inline-flex bg-dashboard-neon/10 p-3 rounded-full border border-dashboard-neon/30 mb-3 shadow-glow-neon">
-            <Server className="w-8 h-8 text-dashboard-neon" />
-          </div>
-          <h2 className="text-2xl font-bold tracking-widest text-white font-digital uppercase">
-            P3 Operations Center
-          </h2>
-          <p className="text-xs text-dashboard-accent tracking-widest font-mono mt-1">
-            INFRASTRUCTURE MONITORING LOGIN
-          </p>
-        </div>
-
-        {errorMsg && (
-          <div className="mb-6 p-3 rounded border border-rose-500/30 bg-rose-950/20 text-rose-400 text-sm text-center font-mono">
-            {errorMsg}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Username Input */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-mono text-dashboard-accent uppercase tracking-wider block">
-              Username ID
-            </label>
-            <div className="relative">
-              <span className="absolute left-3 top-3.5 text-gray-500">
-                <User className="w-4.5 h-4.5" />
-              </span>
-              <input
-                type="text"
-                required
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="operator_name"
-                className="w-full pl-10 pr-4 py-3 bg-black/40 border border-dashboard-border rounded-lg text-white font-mono placeholder-gray-600 focus:outline-none focus:border-dashboard-neon transition-colors"
-              />
+          {/* Title block */}
+          <div style={{ marginBottom: "3.5rem" }}>
+            <div className="metro-title">p3</div>
+            <div style={{
+              fontSize: "clamp(1.5rem, 3vw, 2rem)",
+              fontWeight: 300,
+              color: "rgba(255,255,255,0.45)",
+              letterSpacing: "-0.01em",
+              lineHeight: 1.1,
+              marginTop: "0.25rem",
+            }}>
+              operations center
+            </div>
+            <div className="metro-label" style={{ marginTop: "1rem" }}>
+              {isRegister ? "create account" : "sign in to continue"}
             </div>
           </div>
 
-          {/* Password Input */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-mono text-dashboard-accent uppercase tracking-wider block">
-              Security Keycode
-            </label>
-            <div className="relative">
-              <span className="absolute left-3 top-3.5 text-gray-500">
-                <Lock className="w-4.5 h-4.5" />
-              </span>
+          {/* Error */}
+          {errorMsg && (
+            <div style={{
+              background: "rgba(239,35,60,0.12)",
+              borderLeft: "3px solid #ef233c",
+              padding: "0.875rem 1rem",
+              marginBottom: "2rem",
+              fontSize: "0.875rem",
+              color: "#ef233c",
+            }}>
+              {errorMsg}
+            </div>
+          )}
+
+          {/* Form */}
+          <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "2rem" }}>
+            <div>
+              <label className="metro-label" style={{ display: "block", marginBottom: "0.5rem" }}>username</label>
+              <input
+                type="text"
+                required
+                autoFocus
+                value={username}
+                onChange={e => setUsername(e.target.value)}
+                placeholder="operator_name"
+                className="metro-input"
+              />
+            </div>
+
+            <div>
+              <label className="metro-label" style={{ display: "block", marginBottom: "0.5rem" }}>password</label>
               <input
                 type="password"
                 required
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={e => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full pl-10 pr-4 py-3 bg-black/40 border border-dashboard-border rounded-lg text-white font-mono placeholder-gray-600 focus:outline-none focus:border-dashboard-neon transition-colors"
+                className="metro-input"
               />
             </div>
-          </div>
 
-          {/* Setup / Register fields */}
-          {isRegister && (
-            <div className="space-y-1.5">
-              <label className="text-xs font-mono text-dashboard-accent uppercase tracking-wider block">
-                Assigned Role
-              </label>
-              <div className="relative">
-                <span className="absolute left-3 top-3.5 text-gray-500">
-                  <Terminal className="w-4.5 h-4.5" />
-                </span>
+            {isRegister && (
+              <div>
+                <label className="metro-label" style={{ display: "block", marginBottom: "0.5rem" }}>role</label>
                 <select
                   value={role}
-                  onChange={(e) => setRole(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 bg-black/40 border border-dashboard-border rounded-lg text-white font-mono focus:outline-none focus:border-dashboard-neon appearance-none transition-colors"
+                  onChange={e => setRole(e.target.value)}
+                  className="metro-input"
+                  style={{ cursor: "pointer" }}
                 >
-                  <option value="admin" className="bg-dashboard-card text-white">Admin (Full Control)</option>
-                  <option value="operator" className="bg-dashboard-card text-white">Operator (Control Dashboard)</option>
-                  <option value="viewer" className="bg-dashboard-card text-white">Viewer (Read Only)</option>
+                  <option value="admin" style={{ background: "#1a1a1a" }}>admin</option>
+                  <option value="operator" style={{ background: "#1a1a1a" }}>operator</option>
+                  <option value="viewer" style={{ background: "#1a1a1a" }}>viewer</option>
                 </select>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Action Button */}
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="w-full bg-dashboard-neon text-black font-semibold uppercase tracking-widest py-3.5 rounded-lg hover:bg-white transition-all duration-300 shadow-glow-neon font-digital disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isLoading ? "Authenticating..." : isRegister ? "Provision Account" : "Access Console"}
-          </button>
-        </form>
+            <button type="submit" disabled={isLoading} className="metro-btn" style={{ marginTop: "0.5rem" }}>
+              {isLoading ? "authenticating..." : isRegister ? "create account" : "sign in"}
+            </button>
+          </form>
 
-        {/* Toggle Mode Link */}
-        <div className="mt-6 text-center text-xs font-mono text-gray-400">
           <button
             onClick={() => setIsRegister(!isRegister)}
-            className="text-dashboard-accent hover:text-dashboard-neon underline bg-transparent"
+            style={{
+              background: "transparent",
+              border: "none",
+              color: "rgba(255,255,255,0.35)",
+              fontSize: "0.8125rem",
+              marginTop: "2rem",
+              cursor: "pointer",
+              padding: 0,
+              textDecoration: "underline",
+              fontFamily: "inherit",
+            }}
           >
-            {isRegister
-              ? "Already have an account? Access Console"
-              : "First install? Provision Admin Account"}
+            {isRegister ? "already have an account" : "first time? create account"}
           </button>
+        </div>
+      </div>
+
+      {/* Right decorative typography */}
+      <div style={{
+        display: "none",
+        alignItems: "flex-end",
+        paddingBottom: "4rem",
+        paddingRight: "5vw",
+        overflow: "hidden",
+      }} className="lg:flex">
+        <div style={{
+          fontSize: "clamp(6rem, 12vw, 14rem)",
+          fontWeight: 700,
+          color: "rgba(255,255,255,0.03)",
+          lineHeight: 1,
+          letterSpacing: "-0.04em",
+          userSelect: "none",
+        }}>
+          NOC
         </div>
       </div>
     </div>
