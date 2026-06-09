@@ -5,8 +5,8 @@ import requests
 import logging
 from datetime import datetime, timedelta
 from typing import Dict, List, Any
-from backend.app.config import settings
-from backend.app.database import SessionLocal, DBOperationsLog, DBProcessingQueue, DBFeedSource
+from app.config import settings
+from app.database import SessionLocal, DBOperationsLog, DBProcessingQueue, DBFeedSource
 
 logger = logging.getLogger("backend.autopilot")
 
@@ -201,7 +201,7 @@ class AutopilotManager:
         
         # 1. Evaluate DB Status
         # If DB connection failed or SQLite fallback is active, deduct slightly
-        from backend.app.database import is_sqlite
+        from app.database import is_sqlite
         if is_sqlite:
             score -= 10
             issues.append("PostgreSQL Connection Offline (SQLite Fallback)")

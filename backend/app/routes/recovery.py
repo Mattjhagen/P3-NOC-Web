@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from backend.app.autopilot import autopilot
-from backend.app.auth import get_operator_user
+from app.autopilot import autopilot
+from app.auth import get_operator_user
 from typing import Dict, Any
 
 router = APIRouter(prefix="/recovery", tags=["recovery"])

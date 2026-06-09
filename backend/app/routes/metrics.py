@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Query
-from backend.app.monitoring import monitor
-from backend.app.auth import get_viewer_user
+from app.monitoring import monitor
+from app.auth import get_viewer_user
 from typing import List, Dict, Any
 
 router = APIRouter(prefix="/metrics", tags=["metrics"])

@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from backend.app.database import get_db, DBProcessingQueue, DBOperationsLog, DBFeedSource, is_sqlite
-from backend.app.monitoring import monitor
-from backend.app.autopilot import autopilot
-from backend.app.auth import get_viewer_user
+from app.database import get_db, DBProcessingQueue, DBOperationsLog, DBFeedSource, is_sqlite
+from app.monitoring import monitor
+from app.autopilot import autopilot
+from app.auth import get_viewer_user
 from typing import Dict, Any
 
 router = APIRouter(tags=["system"])

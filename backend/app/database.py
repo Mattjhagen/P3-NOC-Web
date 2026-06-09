@@ -4,7 +4,7 @@ from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, 
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 from sqlalchemy.engine import Engine
 from datetime import datetime
-from backend.app.config import settings
+from app.config import settings
 
 logger = logging.getLogger("backend.database")
 

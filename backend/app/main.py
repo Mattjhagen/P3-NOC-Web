@@ -2,11 +2,11 @@ import asyncio
 import logging
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from backend.app.config import settings
-from backend.app.database import init_db
-from backend.app.monitoring import monitor
-from backend.app.autopilot import autopilot
-from backend.app.routes import auth, system, recovery, metrics, chat
+from app.config import settings
+from app.database import init_db
+from app.monitoring import monitor
+from app.autopilot import autopilot
+from app.routes import auth, system, recovery, metrics, chat
 
 # Setup logs
 logging.basicConfig(
@@ -67,7 +67,7 @@ class WebSocketManager:
             
         # Compile status dictionary
         # Retrieve queue counts and logs for live updates
-        from backend.app.database import SessionLocal, DBProcessingQueue
+        from app.database import SessionLocal, DBProcessingQueue
         failed = 0
         processing = 0
         pending = 0

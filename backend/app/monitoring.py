@@ -8,8 +8,8 @@ import logging
 import psutil
 from datetime import datetime, timedelta
 from typing import Dict, List, Any
-from backend.app.config import settings
-from backend.app.database import SessionLocal, DBSystemMetric, DBAnalysis, DBAnalysisVersion, is_sqlite
+from app.config import settings
+from app.database import SessionLocal, DBSystemMetric, DBAnalysis, DBAnalysisVersion, is_sqlite
 
 logger = logging.getLogger("backend.monitoring")
 

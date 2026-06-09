@@ -6,9 +6,9 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
-from backend.app.database import SessionLocal, get_db, Conversation, ChatMessage, User
-from backend.app.config import settings
-from backend.app.auth import get_current_user
+from app.database import SessionLocal, get_db, Conversation, ChatMessage, User
+from app.config import settings
+from app.auth import get_current_user
 
 logger = logging.getLogger("backend.chat")
 
@@ -115,9 +115,9 @@ async def stream_ollama_chat(
     selected_model = model_name if model_name else settings.OLLAMA_MODEL
     
     # Inline imports to avoid any circular references
-    from backend.app.monitoring import monitor
-    from backend.app.autopilot import autopilot
-    from backend.app.database import DBProcessingQueue, DBArticle, DBAnalysis
+    from app.monitoring import monitor
+    from app.autopilot import autopilot
+    from app.database import DBProcessingQueue, DBArticle, DBAnalysis
 
     # Simple keyword extraction & database search (Perplexity-style)
     matched_articles = []
@@ -339,7 +339,7 @@ async def stream_ollama_chat(
                 db.add(assistant_message)
                 
                 # Also log request in analysis_versions mapping
-                from backend.app.database import DBAnalysisVersion
+                from app.database import DBAnalysisVersion
                 db.add(DBAnalysisVersion(
                     model_name=selected_model,
                     response_time_ms=500.0  # approximate
