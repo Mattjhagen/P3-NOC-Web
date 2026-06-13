@@ -92,5 +92,7 @@ echo -e "  ${YELLOW}sudo systemctl start p3-noc-web.service${RESET}"
 
 echo -e "\n${GREEN}=====================================================${RESET}"
 echo -e "${GREEN}      DEPLOYMENT PROVISIONING COMPLETED               ${RESET}"
-echo -e "${GREEN}      Operations center reachable on http://localhost${RESET}"
+echo -e "${GREEN}      Operations center reachable on:                 ${RESET}"
+echo -e "${GREEN}      LOCAL: http://localhost:8080                    ${RESET}"
+echo -e "${GREEN}      REMOTE: Access via Tailscale IP on port 8080    ${RESET}"
 echo -e "${GREEN}=====================================================${RESET}"

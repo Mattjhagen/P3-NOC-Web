@@ -16,10 +16,36 @@ logging.basicConfig(
 )
 logger = logging.getLogger("backend")
 
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # 1. Initialize DB and Fallbacks
+    init_db()
+    
+    # 2. Run initial metrics polling
+    await asyncio.to_thread(monitor.update_metrics)
+    
+    # 3. Start background tasks
+    mon_task = asyncio.create_task(monitoring_worker())
+    auto_task = asyncio.create_task(autopilot_worker())
+    ws_task = asyncio.create_task(ws_broadcast_worker())
+    
+    logger.info("P3 Operations Center backend services fully started.")
+    
+    yield
+    
+    # 4. Cleanup
+    mon_task.cancel()
+    auto_task.cancel()
+    ws_task.cancel()
+    logger.info("P3 Operations Center backend services shutting down.")
+
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version="1.0.0",
-    docs_url="/docs"
+    docs_url="/docs",
+    lifespan=lifespan
 )
 
 # CORS configuration
@@ -143,7 +169,8 @@ async def monitoring_worker():
     """Polls server telemetry metrics regularly in the background."""
     while True:
         try:
-            monitor.update_metrics()
+            # Run blocking telemetry polling in a thread pool to avoid blocking event loop
+            await asyncio.to_thread(monitor.update_metrics)
         except Exception as e:
             logger.error(f"Error in telemetry polling thread: {e}")
         await asyncio.sleep(settings.POLL_INTERVAL_METRICS)
@@ -155,7 +182,8 @@ async def autopilot_worker():
             telemetry = {
                 "r510": monitor.r510_metrics
             }
-            autopilot.execute_evaluation_cycle(telemetry)
+            # Run blocking evaluation cycle in a thread pool
+            await asyncio.to_thread(autopilot.execute_evaluation_cycle, telemetry)
         except Exception as e:
             logger.error(f"Error in autopilot evaluation cycle: {e}")
         await asyncio.sleep(settings.POLL_INTERVAL_AUTOPILOT)
@@ -170,20 +198,6 @@ async def ws_broadcast_worker():
         await asyncio.sleep(3.0)
 
 # --- App Lifecycle Events ---
-
-@app.on_event("startup")
-async def startup_event():
-    # 1. Initialize DB and Fallbacks
-    init_db()
-    
-    # 2. Run initial metrics polling
-    monitor.update_metrics()
-    
-    # 3. Register background tasks
-    asyncio.create_task(monitoring_worker())
-    asyncio.create_task(autopilot_worker())
-    asyncio.create_task(ws_broadcast_worker())
-    logger.info("P3 Operations Center backend services fully started.")
 
 if __name__ == "__main__":
     import uvicorn

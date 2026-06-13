@@ -140,7 +140,9 @@ public class NOCClient: NSObject, UNUserNotificationCenterDelegate {
                 if NOCClient.isRunningOnMacOrSimulator {
                     return "http://\(NOCClient.getLocalIPAddress()):8000"
                 } else {
-                    return "http://192.168.1.85:8000"
+                    // Physical iOS device - default to the local IP detected or common local subnet
+                    let ip = NOCClient.getLocalIPAddress()
+                    return "http://\(ip):8000"
                 }
             } else {
                 return "https://mattyhagen.xyz"
@@ -157,12 +159,14 @@ public class NOCClient: NSObject, UNUserNotificationCenterDelegate {
             return clean
         }
         
-        // If it's a local address (localhost, 127.0.0.1, or 192.168.x.x), default to http
+        // If it's a local address (localhost, 127.0.0.1, or 192.168.x.x, 100.x.x.x, etc.), default to http
         let isLocal = clean.contains("localhost") || 
                       clean.contains("127.0.0.1") || 
                       clean.contains(".local") || 
+                      clean.contains(".tailscale.net") ||
                       clean.hasPrefix("192.168.") || 
                       clean.hasPrefix("10.") ||
+                      clean.hasPrefix("100.") ||
                       clean.hasPrefix("172.")
         
         let scheme = isLocal ? "http://" : "https://"

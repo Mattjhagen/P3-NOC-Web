@@ -243,7 +243,7 @@ async def stream_ollama_chat(
     # 2. Yield thinking console logs prefix chunk
     thinking_prefix = "[THINKING]" + "\n".join(search_steps) + "\n\nThinking Process:\n"
     yield f"data: {json.dumps({'model': selected_model, 'message': {'role': 'assistant', 'content': thinking_prefix}, 'done': False})}\n\n"
-    accumulated_content.append(thinking_prefix)
+    # Note: We do NOT append thinking_prefix to accumulated_content because we don't want it in DB history
 
     try:
         async with httpx.AsyncClient(timeout=300.0) as client:
@@ -259,9 +259,14 @@ async def stream_ollama_chat(
                         continue
                     try:
                         chunk = json.loads(line)
-                        content = chunk.get("message", {}).get("content", "")
+                        # Capture both content AND thinking if present (thinking models use thinking field)
+                        msg_chunk = chunk.get("message", {})
+                        content = msg_chunk.get("content", "")
+                        thinking = msg_chunk.get("thinking", "")
+                        
                         if content:
                             accumulated_content.append(content)
+                        # We don't append 'thinking' to accumulated_content to keep DB history clean
                             
                         # Forward chunk exactly as data stream
                         yield f"data: {line}\n\n"
