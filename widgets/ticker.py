@@ -43,12 +43,10 @@ class TickerWidget(Static):
 
         try:
             # Use the widget's actual allocated width
+            # Textual's size.width already accounts for the content area inside borders
             full_width = self.size.width
-            # Subtract 2 for borders (left and right border characters)
-            if full_width > 4:
-                full_width = full_width - 4
         except Exception:
-            full_width = 76
+            full_width = 80
 
         text_with_gap = self.ticker_text + "   ||   "
 
