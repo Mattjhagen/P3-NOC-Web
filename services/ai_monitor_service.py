@@ -50,6 +50,12 @@ Keep response under 500 chars."""
         diagnosis = self.opencode_service.generate_response(prompt)
         if diagnosis:
             logger.info(f"AI diagnosis generated for {len(alerts)} alerts")
+            # Log AI's chain of thought
+            logger.info(f"[AI Monitor] Gemini diagnosis:")
+            for line in diagnosis.split('\n')[:10]:  # First 10 lines
+                if line.strip():
+                    logger.info(f"[AI Monitor] {line}")
+
             self.last_diagnosis = {
                 "timestamp": datetime.now(),
                 "alerts": alerts,

@@ -139,12 +139,23 @@ Respond in JSON format:
         if result.returncode == 0:
             # Parse JSON from output
             output = result.stdout.strip()
+
+            # Log AI's full response (chain of thought)
+            logger.info(f"[AI] Gemini response for '{article_title[:50]}':")
+            logger.info(f"[AI] {output[:500]}")  # First 500 chars
+
             # Extract JSON (opencode adds formatting)
             json_start = output.find('{')
             json_end = output.rfind('}') + 1
             if json_start >= 0 and json_end > json_start:
                 json_str = output[json_start:json_end]
                 analysis = json.loads(json_str)
+
+                # Log parsed analysis
+                logger.info(f"[AI] Parsed: sentiment={analysis.get('sentiment')}, " +
+                           f"score={analysis.get('importance_score')}, " +
+                           f"confidence={analysis.get('confidence')}")
+
                 return analysis
 
         logger.warning(f"[AI] OpenCode returned non-zero exit: {result.stderr[:200]}")
