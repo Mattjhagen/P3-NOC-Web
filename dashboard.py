@@ -102,7 +102,47 @@ class P3NocApp(App):
     """
     CSS = """
     /* Theme colorways - Explicitly styled to avoid CSS variables */
-    
+
+    /* 0. terminal - Black/Red/Green hacker theme */
+    .terminal Screen {
+        background: #000000;
+        color: #00ff00;
+    }
+    .terminal SystemPanel, .terminal ThroughputPanel, .terminal SysMetricsPanel,
+    .terminal RiskRadar, .terminal RiskTrendPanel, .terminal RunbookPanel,
+    .terminal OllamaPanel, .terminal AlertPanel, .terminal AutopilotPanel,
+    .terminal NewsFeed, .terminal LogPanel, .terminal TickerWidget {
+        border: round #00ff00;
+        background: #000000;
+        color: #00ff00;
+    }
+    .terminal SystemPanel:focus, .terminal ThroughputPanel:focus, .terminal SysMetricsPanel:focus,
+    .terminal RiskRadar:focus, .terminal RiskTrendPanel:focus, .terminal RunbookPanel:focus,
+    .terminal OllamaPanel:focus, .terminal AlertPanel:focus, .terminal AutopilotPanel:focus,
+    .terminal NewsFeed:focus, .terminal LogPanel:focus, .terminal TickerWidget:focus {
+        border: double #ff0000;
+    }
+    .terminal.wallboard-mode SystemPanel, .terminal.wallboard-mode ThroughputPanel, .terminal.wallboard-mode SysMetricsPanel,
+    .terminal.wallboard-mode RiskRadar, .terminal.wallboard-mode RiskTrendPanel, .terminal.wallboard-mode RunbookPanel,
+    .terminal.wallboard-mode OllamaPanel, .terminal.wallboard-mode AlertPanel, .terminal.wallboard-mode AutopilotPanel,
+    .terminal.wallboard-mode NewsFeed, .terminal.wallboard-mode LogPanel, .terminal.wallboard-mode TickerWidget {
+        border: double #ff0000;
+    }
+    .terminal TickerWidget {
+        background: #000000;
+    }
+    .terminal AiServerStatusPanel {
+        border: round #00ff00;
+        background: #000000;
+        color: #00ff00;
+    }
+    .terminal AiServerStatusPanel:focus {
+        border: double #ff0000;
+    }
+    .terminal.wallboard-mode AiServerStatusPanel {
+        border: double #ff0000;
+    }
+
     /* 1. matrix-green */
     .matrix-green Screen {
         background: #020a02;
