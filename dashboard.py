@@ -989,11 +989,14 @@ class P3NocApp(App):
             pass
 
     def _update_btc_ticker_ui(self, btc_data):
+        import time
         try:
             header = self.query_one(HeaderWidget)
             header.btc_price_str = btc_data["price_str"]
             header.btc_change_str = btc_data["change_str"]
             header.btc_positive = btc_data["is_positive"]
+            header.btc_last_updated = time.time()
+            header.btc_update_interval = REFRESH_RATES["ticker_fetch"]
         except Exception:
             pass
 

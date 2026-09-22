@@ -28,7 +28,9 @@ class HeaderWidget(Widget):
     btc_price_str = reactive("$104,822")
     btc_change_str = reactive("+2.4%")
     btc_positive = reactive(True)
-    
+    btc_last_updated = reactive(0)  # Unix timestamp
+    btc_update_interval = reactive(60)  # Seconds between updates
+
     risk_score = reactive(0)
     queue_remaining = reactive(0)
     eta_str = reactive("0m")
@@ -106,11 +108,25 @@ class HeaderWidget(Widget):
         # Build the Executive Summary Banner text
         banner = Text()
         
-        # 1. BTC Price & Change
+        # 1. BTC Price & Change with update timing
         btc_style = healthy_color if self.btc_positive else warning_color
         sign = "▲" if self.btc_positive else "▼"
         banner.append("BTC ", style="bold white")
         banner.append(f"{self.btc_price_str} ({sign}{self.btc_change_str})", style=btc_style)
+
+        # Show last updated and next update
+        if self.btc_last_updated > 0:
+            now = datetime.now().timestamp()
+            seconds_ago = int(now - self.btc_last_updated)
+            seconds_until = max(0, int(self.btc_update_interval - seconds_ago))
+
+            if seconds_ago < 60:
+                time_ago = f"{seconds_ago}s ago"
+            else:
+                time_ago = f"{seconds_ago // 60}m ago"
+
+            banner.append(f" [{time_ago}, next: {seconds_until}s]", style=muted_color)
+
         banner.append("  |  ", style=muted_color)
 
         # 2. Risk score (e.g. RISK: 72 (HIGH))
