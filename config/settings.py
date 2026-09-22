@@ -40,3 +40,7 @@ REFRESH_RATES = {
     "ticker_update": float(os.getenv("REFRESH_TICKER", "0.1")), # Ticker redraw frequency
     "ticker_fetch": int(os.getenv("FETCH_TICKER", "60")), # How often to fetch BTC price
 }
+
+# OpenCode AI configuration
+USE_OPENCODE = os.getenv("USE_OPENCODE", "false").lower() == "true"
+OPENCODE_MODEL = os.getenv("OPENCODE_MODEL", "opencode/big-pickle")
