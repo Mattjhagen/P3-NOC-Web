@@ -28,19 +28,32 @@ class RecoveryService:
             return True
 
     def restart_ingest(self) -> bool:
-        """Restart systemd RSS ingest timer. Simulates on non-Linux."""
-        timer_name = SERVICE_INGEST if SERVICE_INGEST.endswith(".timer") else f"{SERVICE_INGEST}.timer"
+        """Restart systemd RSS ingest service/timer. Simulates on non-Linux."""
+        # Check if it's a timer or service - try timer first, fallback to service
+        service_name = SERVICE_INGEST
+
         if sys.platform.startswith("linux"):
             try:
-                # User specified restarting the timer unit
-                subprocess.run(["sudo", "systemctl", "restart", timer_name], check=True)
-                logger.info(f"systemctl: restarted {timer_name}")
+                # If already ends with .timer or .service, use as-is
+                if not (service_name.endswith(".timer") or service_name.endswith(".service")):
+                    # Check if timer exists, otherwise use service
+                    check_timer = subprocess.run(
+                        ["systemctl", "list-units", "--type=timer", "--all"],
+                        capture_output=True, text=True, timeout=5
+                    )
+                    if f"{service_name}.timer" in check_timer.stdout:
+                        service_name = f"{service_name}.timer"
+                    else:
+                        service_name = f"{service_name}.service"
+
+                subprocess.run(["sudo", "systemctl", "restart", service_name], check=True)
+                logger.info(f"systemctl: restarted {service_name}")
                 return True
             except Exception as e:
-                logger.error(f"Failed to restart RSS ingest timer: {e}")
+                logger.error(f"Failed to restart RSS ingest: {e}")
                 return False
         else:
-            logger.info(f"SIMULATION: restarted {timer_name}")
+            logger.info(f"SIMULATION: restarted {service_name}")
             return True
 
     def restart_ollama(self) -> bool:
