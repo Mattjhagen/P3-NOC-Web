@@ -95,12 +95,13 @@ class RecoveryService:
                     UPDATE processing_queue
                     SET status = 'pending',
                         retry_count = 0,
-                        last_error = NULL,
+                        error_message = NULL,
                         updated_at = CURRENT_TIMESTAMP
-                    WHERE status IN ('failed', 'dead_letter');
+                    WHERE status = 'failed';
                 """)
+                affected = cur.rowcount
                 conn.commit()
-            logger.info("Database: Requeued failed jobs.")
+            logger.info(f"Database: Requeued {affected} failed jobs.")
             return True
         except Exception as e:
             logger.error(f"Failed to requeue failed jobs: {e}")
