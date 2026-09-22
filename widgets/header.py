@@ -57,22 +57,22 @@ class HeaderWidget(Widget):
         # Compute Giant NOC Status Banner based on Autopilot health status
         status_upper = self.status_str.upper()
         if "SAFE" in status_upper:
-            status_banner = Text(" [SAFE MODE ACTIVE]        ", style="bold white on red reverse")
+            status_banner = Text(" [SAFE MODE ACTIVE]        ", style="bold white on red")
         elif "INCIDENT" in status_upper:
             status_banner = Text(" [SYSTEM STATUS: 🔴 INCIDENT] ", style="bold white on red")
         elif "DEGRADED" in status_upper:
             status_banner = Text(" [SYSTEM STATUS: 🟡 DEGRADED] ", style="bold black on yellow")
         elif "LOCKED" in status_upper:
-            status_banner = Text(" [AUTOPILOT: 🔴 LOCKED]       ", style="bold white on red reverse")
+            status_banner = Text(" [AUTOPILOT: 🔴 LOCKED]       ", style="bold white on red")
         else:
-            status_banner = Text(" [SYSTEM STATUS: 🟢 HEALTHY]  ", style="bold white on green")
+            status_banner = Text(" [SYSTEM STATUS: 🟢 HEALTHY]  ", style="bold bright_green on black")
 
         # Compute AI Server persistent status banner
         ai_banner = Text()
         if self.ai_server_status == "GREEN":
-            ai_banner = Text(" [AI SERVER: ONLINE] ", style="bold white on green")
+            ai_banner = Text(" [AI SERVER: ONLINE] ", style="bold bright_green on black")
         elif self.ai_server_status == "YELLOW":
-            ai_banner = Text(" [⚠ AI SERVER DEGRADED] ", style="bold black on yellow")
+            ai_banner = Text(" [⚠ AI SERVER DEGRADED] ", style="bold yellow on black")
         else: # RED
             if self.ai_server_is_critical:
                 if self.ai_server_flash_toggle:
@@ -83,7 +83,7 @@ class HeaderWidget(Widget):
                 if self.ai_server_flash_toggle:
                     ai_banner = Text(" [🚨 CHECK AI SERVER (R510) 🚨] ", style="bold white on red")
                 else:
-                    ai_banner = Text(" [🚨 CHECK AI SERVER (R510) 🚨] ", style="bold red")
+                    ai_banner = Text(" [🚨 CHECK AI SERVER (R510) 🚨] ", style="bold red on black")
 
         # Build ASCII branding header if NOT in compact mode
         header_text = Text()
