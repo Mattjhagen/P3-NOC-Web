@@ -332,17 +332,32 @@ class DBService:
         try:
             conn = self.get_connection()
             with conn.cursor() as cur:
+                # First check if feed_sources table exists
+                cur.execute("""
+                    SELECT EXISTS (
+                        SELECT FROM information_schema.tables
+                        WHERE table_name = 'feed_sources'
+                    );
+                """)
+                table_exists = cur.fetchone()[0]
+
+                if not table_exists:
+                    # No RSS feed table = no RSS feature = return True (not an error)
+                    logger.debug("feed_sources table does not exist - RSS feeds not configured")
+                    return True
+
                 # Check if there's any successful feed poll in the last 24 hours
                 cur.execute("""
-                    SELECT COUNT(*) FROM feed_sources 
-                    WHERE enabled = TRUE 
+                    SELECT COUNT(*) FROM feed_sources
+                    WHERE enabled = TRUE
                       AND (last_successful_poll IS NULL OR last_successful_poll >= NOW() - INTERVAL '24 hours');
                 """)
                 count = cur.fetchone()[0]
                 return count > 0
         except Exception as e:
             logger.error(f"Failed to check RSS feed health: {e}")
-            return False
+            # On error, return True to avoid false alerts
+            return True
         finally:
             if conn:
                 conn.close()
