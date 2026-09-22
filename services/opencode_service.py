@@ -18,15 +18,19 @@ class OpenCodeService:
 
     def check_status(self) -> str:
         """Check if OpenCode service is available."""
+        # Return cached status if we've checked recently
+        if self.status_cache != "UNKNOWN":
+            return self.status_cache
+
         try:
-            # Test if opencode command is available
+            # Quick check - just see if opencode command exists
             result = subprocess.run(
-                ["opencode", "models"],
+                ["which", "opencode"],
                 capture_output=True,
                 text=True,
-                timeout=5
+                timeout=2
             )
-            if result.returncode == 0 and ("gemini" in result.stdout or "deepseek" in result.stdout):
+            if result.returncode == 0:
                 self.status_cache = "ONLINE"
                 return "ONLINE"
             else:
