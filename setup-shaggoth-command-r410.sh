@@ -15,22 +15,57 @@ echo "======================================================"
 echo "DeepSeek-R1 671B Training Interface"
 echo ""
 
-# Check SSH connection
-echo "[1/6] Testing R410 connection..."
-if ! ssh -o ConnectTimeout=5 ${R410_USER}@${R410_HOST} "echo 'Connected'" 2>/dev/null; then
-    echo "ERROR: Cannot connect to R410 at ${R410_HOST}"
+# Check and setup SSH keys if needed
+echo "[1/7] Setting up SSH keys for R410..."
+
+# Generate SSH key if doesn't exist
+if [ ! -f ~/.ssh/id_rsa ]; then
+    echo "  - Generating SSH key..."
+    ssh-keygen -t rsa -b 4096 -N "" -f ~/.ssh/id_rsa -q
+    echo "  ✓ SSH key generated"
+fi
+
+# Test connection
+if ! ssh -o ConnectTimeout=5 -o BatchMode=yes ${R410_USER}@${R410_HOST} "echo 'Connected'" 2>/dev/null; then
+    echo "  - SSH key not configured on R410"
+    echo "  - Copying SSH key to R410..."
     echo ""
-    echo "Setup SSH first:"
-    echo "  ssh-copy-id ${R410_USER}@${R410_HOST}"
+    echo "You will be prompted for the R410 password (one time only):"
+    echo ""
+
+    ssh-copy-id -o ConnectTimeout=10 ${R410_USER}@${R410_HOST} || {
+        echo ""
+        echo "ERROR: Failed to copy SSH key to R410"
+        echo ""
+        echo "Please verify:"
+        echo "  1. R410 is online at ${R410_HOST}"
+        echo "  2. SSH server is running on R410"
+        echo "  3. You know the password for ${R410_USER}@${R410_HOST}"
+        echo ""
+        echo "Manual setup:"
+        echo "  ssh-copy-id ${R410_USER}@${R410_HOST}"
+        exit 1
+    }
+
+    echo ""
+    echo "  ✓ SSH key copied successfully"
+else
+    echo "  ✓ SSH already configured"
+fi
+
+# Verify connection works
+echo "  - Testing connection..."
+if ! ssh -o ConnectTimeout=5 ${R410_USER}@${R410_HOST} "echo 'Connected'" 2>/dev/null; then
+    echo "ERROR: Still cannot connect to R410"
     exit 1
 fi
-echo "  ✓ Connected to R410"
+echo "  ✓ Connection verified"
 
 # ============================================================
 # Install VNC Server for Shaggoth
 # ============================================================
 echo ""
-echo "[2/6] Setting up VNC server on R410..."
+echo "[2/7] Setting up VNC server on R410..."
 
 ssh ${R410_USER}@${R410_HOST} << 'R410_VNC'
 # Install TigerVNC and lightweight desktop
@@ -94,7 +129,7 @@ echo "  ✓ VNC server running on display :2"
 # Install noVNC for Web Browser Access
 # ============================================================
 echo ""
-echo "[3/6] Setting up web browser access..."
+echo "[3/7] Setting up web browser access..."
 
 ssh ${R410_USER}@${R410_HOST} << 'NOVNC'
 # Install noVNC if not already present
@@ -138,7 +173,7 @@ echo "  ✓ Web interface available on port 6081"
 # Copy Shaggoth AI Trainer to R410
 # ============================================================
 echo ""
-echo "[4/6] Syncing Shaggoth AI trainer to R410..."
+echo "[4/7] Syncing Shaggoth AI trainer to R410..."
 
 if [ -d ~/AI ]; then
     echo "  - Copying AI trainer..."
@@ -161,7 +196,7 @@ fi
 # Install Dependencies on R410
 # ============================================================
 echo ""
-echo "[5/6] Installing Shaggoth dependencies on R410..."
+echo "[5/7] Installing Shaggoth dependencies on R410..."
 
 ssh ${R410_USER}@${R410_HOST} << 'DEPS'
 # Install Python and dependencies
@@ -198,7 +233,7 @@ echo "  ✓ Dependencies ready"
 # Create Connection Scripts
 # ============================================================
 echo ""
-echo "[6/6] Creating connection scripts..."
+echo "[6/7] Creating connection scripts..."
 
 # Web browser connection (easiest)
 cat > ~/P3_Official/P3-NOC-Web/shaggoth-web.sh << 'WEB'
@@ -266,6 +301,44 @@ SSH
 chmod +x ~/P3_Official/P3-NOC-Web/shaggoth-*.sh
 
 echo "  ✓ Connection scripts created"
+
+# ============================================================
+# Setup Time Machine Sync for Shaggoth
+# ============================================================
+echo ""
+echo "[7/7] Setting up Shaggoth sync to R410..."
+
+# Create sync script for keeping R410 updated
+cat > ~/P3_Official/P3-NOC-Web/sync-shaggoth-to-r410.sh << 'SYNC'
+#!/bin/bash
+# Sync Shaggoth AI changes to R410
+
+R410_HOST="192.168.1.48"
+R410_USER="matt"
+
+echo "Syncing Shaggoth AI to R410..."
+
+# Sync AI trainer
+if [ -d ~/AI ]; then
+    echo "  - Syncing ~/AI/..."
+    rsync -az --delete --exclude='venv' --exclude='__pycache__' \
+        --exclude='DeepSeek-R1' --exclude='*.log' \
+        ~/AI/ ${R410_USER}@${R410_HOST}:~/AI/
+fi
+
+# Sync Shaggoth platform
+if [ -d ~/Shaggoth-a1 ]; then
+    echo "  - Syncing ~/Shaggoth-a1/..."
+    rsync -az --delete --exclude='.git' --exclude='node_modules' \
+        ~/Shaggoth-a1/ ${R410_USER}@${R410_HOST}:~/Shaggoth-a1/
+fi
+
+echo "✓ Sync complete"
+SYNC
+
+chmod +x ~/P3_Official/P3-NOC-Web/sync-shaggoth-to-r410.sh
+
+echo "  ✓ Sync script created: ./sync-shaggoth-to-r410.sh"
 
 # ============================================================
 # Summary
