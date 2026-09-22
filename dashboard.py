@@ -423,7 +423,9 @@ class P3NocApp(App):
 
     TickerWidget {
         height: 3;
+        width: 100%;
         margin: 0;
+        padding: 0;
     }
 
     /* AiServerStatusPanel Theme styles */

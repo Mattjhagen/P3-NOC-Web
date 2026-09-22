@@ -42,10 +42,14 @@ class TickerWidget(Static):
             return
 
         try:
-            # Use widget's actual width instead of app width
-            full_width = self.size.width
+            # Get the full terminal width directly from app
+            full_width = self.app.size.width
+            # Account for borders if present
+            if hasattr(self, 'border_title'):
+                full_width = full_width - 2  # Border takes 2 chars
         except Exception:
             full_width = 80
+
         text_with_gap = self.ticker_text + "   ||   "
 
         # Calculate offset
@@ -54,8 +58,8 @@ class TickerWidget(Static):
         # Construct scrolling sliced text
         scrolled = text_with_gap[self.ticker_offset:] + text_with_gap[:self.ticker_offset]
 
-        # Ensure it fits the widget width by padding or cropping
-        display_str = scrolled[:full_width - 2]
+        # Fill the entire width
+        display_str = scrolled[:full_width]
         
         # Apply theme styling
         theme = THEME_COLORS.get(self.current_theme, THEME_COLORS["matrix-green"])

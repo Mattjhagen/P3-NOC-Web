@@ -72,7 +72,7 @@ class HeaderWidget(Widget):
         if self.ai_server_status == "GREEN":
             ai_banner = Text(" [AI SERVER: ONLINE] ", style="bold bright_green on black")
         elif self.ai_server_status == "YELLOW":
-            ai_banner = Text(" [⚠ AI SERVER DEGRADED] ", style="bold yellow on black")
+            ai_banner = Text(" [⚠ AI SERVER DEGRADED] ", style="bold red on red")
         else: # RED
             if self.ai_server_is_critical:
                 if self.ai_server_flash_toggle:
