@@ -21,7 +21,8 @@ class TickerWidget(Static):
     def on_mount(self):
         self.ticker_offset = 0
         self.ticker_text = ""
-        self.border_title = "MARKET TICKER"
+        # No border for edge-to-edge scrolling
+        # self.border_title = "MARKET TICKER"
         # Run scroll timer frequently (every 100ms) for smooth animation
         self.set_interval(0.12, self.animate_ticker)
 
