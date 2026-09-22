@@ -40,26 +40,24 @@ class SystemPanel(Static):
         else:
             success_rate = 100.0
 
-        content.append("\n Processing Queue:\n\n", style=f"bold {primary}")
+        content.append("\n Queue Metrics:\n\n", style=f"bold {primary}")
 
-        # Total
-        content.append(f"  Total:     ", style="white")
-        content.append(f"{total:>6,}\n\n", style=f"bold {primary}")
+        # Main metrics - big and bold
+        content.append(f"  Completed: ", style="white")
+        content.append(f"{self.completed_count:>6,}\n", style=f"bold {healthy}")
 
-        # Helper to add status rows with percentages
-        def add_row(label: str, val: int, style: str):
-            pct = (val / total * 100) if total > 0 else 0
-            bar_len = int(pct / 10)  # 0-10 characters
-            bar = "█" * bar_len
-            content.append(f"  {label:<11}", style="white")
-            content.append(f"{val:>5}", style=f"bold {style}")
-            content.append(f" {bar}", style=style)
-            content.append(f" {pct:>5.1f}%\n", style=muted)
+        content.append(f"  Failed:    ", style="white")
+        content.append(f"{self.failed_count:>6,}\n", style=f"bold {error}")
 
-        add_row("Pending:", self.pending_count, accent)
-        add_row("Processing:", self.processing_count, warning)
-        add_row("Completed:", self.completed_count, healthy)
-        add_row("Failed:", self.failed_count, error)
+        content.append(f"  Pending:   ", style="white")
+        content.append(f"{self.pending_count:>6,}\n\n", style=f"bold {accent}")
+
+        # Secondary metrics with bars
+        content.append(f"  Processing:", style=muted)
+        content.append(f" {self.processing_count}\n", style=warning)
+
+        content.append(f"  Total:     ", style=muted)
+        content.append(f" {total:,}\n", style=muted)
 
         # Success rate
         rate_style = healthy if success_rate >= 90 else (warning if success_rate >= 70 else error)
