@@ -19,7 +19,10 @@ class OllamaPanel(Static):
     trend_str = reactive("")
 
     def on_mount(self):
-        self.border_title = "OLLAMA"
+        # Check if using OpenCode or Ollama
+        import os
+        use_opencode = os.getenv("USE_OPENCODE", "false").lower() == "true"
+        self.border_title = "AI SERVICE" if use_opencode else "OLLAMA"
 
     def watch_latency_sec(self, old_val: float, new_val: float) -> None:
         """Textual watcher to set latency trend indicators."""
